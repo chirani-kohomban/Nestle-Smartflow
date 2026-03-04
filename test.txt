@@ -1,0 +1,12 @@
+| Test               | Status Code |
+| ------------------ | ----------- |
+| GET products       | 200         |
+| POST valid product | 201         |
+| Missing fields     | 400         |
+| Duplicate ID       | 409         |
+
+
+1. 
+2.
+3.
+4.
