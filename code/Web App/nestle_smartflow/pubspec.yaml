@@ -1,0 +1,47 @@
+name: nestle_smartflow
+description: "Nestle SmartFlow - Supply Chain Management System with Flutter Web & PHP Backend"
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP client for API requests
+  http: ^1.1.0
+
+  # State management (optional, for future enhancement)
+  provider: ^6.0.0
+
+  # Local storage (optional, for session management)
+  shared_preferences: ^2.2.0
+
+  # Date formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Uncomment and update the following section to include custom fonts.
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
