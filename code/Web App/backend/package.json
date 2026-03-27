@@ -1,0 +1,48 @@
+{
+  "name": "nestle-smartflow-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Nestle SmartFlow",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node --files src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "seed": "ts-node --files src/scripts/seed.ts",
+    "db:backup": "powershell -ExecutionPolicy Bypass -File scripts/backup-database.ps1",
+    "db:procedures": "ts-node --files src/scripts/applyStoredProcedures.ts",
+    "db:restore": "powershell -ExecutionPolicy Bypass -File scripts/restore-database.ps1",
+    "test": "jest"
+  },
+  "dependencies": {
+    "axios": "^1.4.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.0",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "morgan": "^1.10.0",
+    "mysql2": "^3.20.0",
+    "nodemailer": "^6.9.1",
+    "sequelize": "^6.37.8",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0",
+    "winston": "^3.8.2",
+    "zod": "^3.21.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.17",
+    "@types/jest": "^29.5.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^20.0.0",
+    "@types/nodemailer": "^6.4.17",
+    "jest": "^29.5.0",
+    "nodemon": "^3.0.1"
+  }
+}

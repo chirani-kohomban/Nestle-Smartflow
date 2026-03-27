@@ -1,0 +1,22 @@
+[24-Mar-2026 14:23:11 UTC] PHP Fatal error:  Uncaught mysqli_sql_exception: Unknown column 'o.order_id' in 'field list' in D:\APIIT\Thushain\CC 2\Web App\nestle_api\get_orders.php:55
+Stack trace:
+#0 D:\APIIT\Thushain\CC 2\Web App\nestle_api\get_orders.php(55): mysqli->prepare()
+#1 {main}
+  thrown in D:\APIIT\Thushain\CC 2\Web App\nestle_api\get_orders.php on line 55
+[24-Mar-2026 14:23:38 UTC] PHP Fatal error:  Uncaught mysqli_sql_exception: Unknown column 'o.order_id' in 'field list' in D:\APIIT\Thushain\CC 2\Web App\nestle_api\get_orders.php:55
+Stack trace:
+#0 D:\APIIT\Thushain\CC 2\Web App\nestle_api\get_orders.php(55): mysqli->prepare()
+#1 {main}
+  thrown in D:\APIIT\Thushain\CC 2\Web App\nestle_api\get_orders.php on line 55
+[24-Mar-2026 17:33:56 UTC] PHP Fatal error:  Uncaught mysqli_sql_exception: Table 'nestle_smartflow.inventory' doesn't exist in d:\APIIT\Thushain\CC 2\Web App\nestle_api\status.php:20
+Stack trace:
+#0 d:\APIIT\Thushain\CC 2\Web App\nestle_api\status.php(20): mysqli->query()
+#1 d:\APIIT\Thushain\CC 2\Web App\nestle_api\status.php(38): getCount()
+#2 {main}
+  thrown in d:\APIIT\Thushain\CC 2\Web App\nestle_api\status.php on line 20
+[24-Mar-2026 17:34:18 UTC] PHP Fatal error:  Uncaught mysqli_sql_exception: Table 'nestle_smartflow.inventory' doesn't exist in d:\APIIT\Thushain\CC 2\Web App\nestle_api\status.php:20
+Stack trace:
+#0 d:\APIIT\Thushain\CC 2\Web App\nestle_api\status.php(20): mysqli->query()
+#1 d:\APIIT\Thushain\CC 2\Web App\nestle_api\status.php(38): getCount()
+#2 {main}
+  thrown in d:\APIIT\Thushain\CC 2\Web App\nestle_api\status.php on line 20

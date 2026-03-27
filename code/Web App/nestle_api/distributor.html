@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nestle SmartFlow - Distributor Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border: 1px solid white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .page-subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .card-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .card-subtitle {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+        }
+
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-size: 20px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-processing {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .status-completed {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .action-btn {
+            background: #667eea;
+            color: white;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+            margin-right: 5px;
+        }
+
+        .action-btn:hover {
+            background: #764ba2;
+        }
+
+        .action-btn.secondary {
+            background: #6c757d;
+        }
+
+        .action-btn.secondary:hover {
+            background: #5a6268;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 80px;
+            width: 250px;
+            background: white;
+            height: calc(100vh - 80px);
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .sidebar.active {
+            display: block;
+        }
+
+        .sidebar-item {
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+            color: #666;
+            text-decoration: none;
+            display: block;
+        }
+
+        .sidebar-item:hover {
+            background: #f0f0f0;
+        }
+
+        .sidebar-item.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .toggle-menu {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .toggle-menu {
+                display: block;
+            }
+
+            .header-content {
+                flex-direction: space-between;
+            }
+
+            .sidebar {
+                z-index: 10;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">🏭 Nestle SmartFlow</div>
+            <button class="toggle-menu" id="toggleMenu">☰</button>
+            <div class="user-info">
+                <div>
+                    <div id="userName" style="font-weight: 600;">Distributor User</div>
+                    <div id="userRole" style="font-size: 12px; opacity: 0.8;">distributor</div>
+                </div>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="sidebar" id="sidebar">
+        <a href="#" class="sidebar-item active" onclick="loadSection('dashboard')">📊 Dashboard</a>
+        <a href="#" class="sidebar-item" onclick="loadSection('orders')">📦 Orders</a>
+        <a href="#" class="sidebar-item" onclick="loadSection('shipments')">🚚 Shipments</a>
+        <a href="#" class="sidebar-item" onclick="loadSection('inventory')">📊 Inventory</a>
+        <a href="#" class="sidebar-item" onclick="loadSection('products')">🛍️ Products</a>
+        <a href="#" class="sidebar-item" onclick="loadSection('reports')">📈 Reports</a>
+    </div>
+
+    <div class="container">
+        <div id="message" class="message"></div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboardSection">
+            <div class="page-title">🏭 Distributor Dashboard</div>
+            <div class="page-subtitle">Welcome to your distribution hub. Manage orders, shipments, and inventory.</div>
+
+            <div class="dashboard-grid">
+                <div class="card">
+                    <div class="card-icon">📦</div>
+                    <div class="card-title">Total Orders</div>
+                    <div class="card-value" id="totalOrders">--</div>
+                    <div class="card-subtitle">This month</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">🚚</div>
+                    <div class="card-title">Active Shipments</div>
+                    <div class="card-value" id="activeShipments">--</div>
+                    <div class="card-subtitle">In transit</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">💰</div>
+                    <div class="card-title">Total Revenue</div>
+                    <div class="card-value" id="totalRevenue">₨--</div>
+                    <div class="card-subtitle">This month</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <div class="card-title">Products</div>
+                    <div class="card-value" id="totalProducts">--</div>
+                    <div class="card-subtitle">In catalog</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">📋 Recent Orders</div>
+                <div id="ordersTable"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">🚚 Shipment Status</div>
+                <div id="shipmentsTable"></div>
+            </div>
+        </div>
+
+        <!-- Orders Section -->
+        <div id="ordersSection" style="display:none;">
+            <div class="page-title">📦 Orders Management</div>
+            <div class="page-subtitle">View and manage all distributor orders</div>
+            <div class="section">
+                <div class="section-title">All Orders</div>
+                <div id="allOrdersTable"></div>
+            </div>
+        </div>
+
+        <!-- Shipments Section -->
+        <div id="shipmentsSection" style="display:none;">
+            <div class="page-title">🚚 Shipment Tracking</div>
+            <div class="page-subtitle">Track your shipments and deliveries</div>
+            <div class="section">
+                <div class="section-title">Active Shipments</div>
+                <div id="trackingTable"></div>
+            </div>
+        </div>
+
+        <!-- Inventory Section -->
+        <div id="inventorySection" style="display:none;">
+            <div class="page-title">📊 Inventory Management</div>
+            <div class="page-subtitle">Monitor your warehouse inventory levels</div>
+            <div class="section">
+                <div class="section-title">Stock Levels</div>
+                <div id="inventoryTable"></div>
+            </div>
+        </div>
+
+        <!-- Products Section -->
+        <div id="productsSection" style="display:none;">
+            <div class="page-title">🛍️ Product Catalog</div>
+            <div class="page-subtitle">Browse all available products</div>
+            <div class="section">
+                <div class="section-title">Products</div>
+                <div id="productsTable"></div>
+            </div>
+        </div>
+
+        <!-- Reports Section -->
+        <div id="reportsSection" style="display:none;">
+            <div class="page-title">📈 Reports & Analytics</div>
+            <div class="page-subtitle">View your performance metrics</div>
+            <div class="section">
+                <div class="section-title">Sales Overview</div>
+                <p>Sales analytics coming soon...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadUserInfo();
+            loadDashboardData();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('toggleMenu').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.toggle('active');
+            });
+        }
+
+        function loadUserInfo() {
+            const user = JSON.parse(localStorage.getItem('user') || '{"username":"Distributor","role":"distributor"}');
+            document.getElementById('userName').textContent = user.username || 'Distributor User';
+            document.getElementById('userRole').textContent = user.role || 'distributor';
+        }
+
+        async function loadDashboardData() {
+            try {
+                // Fetch orders
+                const ordersRes = await fetch('/get_orders.php?limit=10');
+                const ordersData = await ordersRes.json();
+                
+                // Fetch products
+                const productsRes = await fetch('/get_products.php?limit=10');
+                const productsData = await productsRes.json();
+                
+                // Fetch inventory
+                const inventoryRes = await fetch('/get_inventory.php?limit=10');
+                const inventoryData = await inventoryRes.json();
+
+                // Update dashboard cards
+                if (ordersData.data) {
+                    document.getElementById('totalOrders').textContent = ordersData.count || 0;
+                    renderOrdersTable(ordersData.data);
+                }
+
+                if (productsData.data) {
+                    document.getElementById('totalProducts').textContent = productsData.count || 0;
+                }
+
+                if (inventoryData.data) {
+                    document.getElementById('activeShipments').textContent = Math.ceil(inventoryData.count / 2) || 0;
+                    renderShipmentsTable(inventoryData.data.slice(0, 5));
+                }
+
+                // Calculate total revenue
+                let totalRevenue = 0;
+                if (ordersData.data) {
+                    totalRevenue = ordersData.data.reduce((sum, order) => sum + (parseFloat(order.total_amount) || 0), 0);
+                    document.getElementById('totalRevenue').textContent = '₨' + totalRevenue.toLocaleString('en-PK', {maximumFractionDigits: 0});
+                }
+
+            } catch (error) {
+                showMessage('Error loading dashboard data: ' + error.message, 'success');
+            }
+        }
+
+        function renderOrdersTable(orders) {
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Retailer</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${orders.slice(0, 5).map(order => `
+                            <tr>
+                                <td>${order.order_id || 'N/A'}</td>
+                                <td>${order.username || 'N/A'}</td>
+                                <td>₨${parseFloat(order.total_amount || 0).toLocaleString('en-PK', {maximumFractionDigits: 2})}</td>
+                                <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
+                                <td>
+                                    <button class="action-btn">View</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('ordersTable').innerHTML = tableHtml;
+        }
+
+        function renderShipmentsTable(data) {
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Quantity</th>
+                            <th>Zone</th>
+                            <th>Stock Level</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(item => `
+                            <tr>
+                                <td>${item.product_name || 'N/A'}</td>
+                                <td>${item.current_stock || 0}</td>
+                                <td>${item.zone || 'N/A'}</td>
+                                <td>${item.current_stock} / ${item.max_stock}</td>
+                                <td>
+                                    <span class="status-badge ${item.current_stock <= item.min_stock ? 'status-pending' : 'status-completed'}">
+                                        ${item.current_stock <= item.min_stock ? '🔴 Low' : '🟢 Normal'}
+                                    </span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('shipmentsTable').innerHTML = tableHtml;
+        }
+
+        function loadSection(section) {
+            // Hide all sections
+            document.getElementById('dashboardSection').style.display = 'none';
+            document.getElementById('ordersSection').style.display = 'none';
+            document.getElementById('shipmentsSection').style.display = 'none';
+            document.getElementById('inventorySection').style.display = 'none';
+            document.getElementById('productsSection').style.display = 'none';
+            document.getElementById('reportsSection').style.display = 'none';
+
+            // Show selected section
+            document.getElementById(section + 'Section').style.display = 'block';
+
+            // Load data based on section
+            if (section === 'orders') {
+                loadOrdersData();
+            } else if (section === 'shipments') {
+                loadShipmentsData();
+            } else if (section === 'inventory') {
+                loadInventoryData();
+            } else if (section === 'products') {
+                loadProductsData();
+            } else if (section === 'dashboard') {
+                loadDashboardData();
+            }
+
+            // Update sidebar
+            document.querySelectorAll('.sidebar-item').forEach(item => item.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Close mobile menu
+            document.getElementById('sidebar').classList.remove('active');
+        }
+
+        async function loadOrdersData() {
+            try {
+                const response = await fetch('/get_orders.php?limit=50');
+                const data = await response.json();
+                
+                if (data.data) {
+                    const tableHtml = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Retailer</th>
+                                    <th>Email</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.data.map(order => `
+                                    <tr>
+                                        <td>${order.order_id || 'N/A'}</td>
+                                        <td>${order.username || 'N/A'}</td>
+                                        <td>${order.email || 'N/A'}</td>
+                                        <td>₨${parseFloat(order.total_amount || 0).toLocaleString('en-PK', {maximumFractionDigits: 2})}</td>
+                                        <td><span class="status-badge status-${order.status.toLowerCase()}">${order.status}</span></td>
+                                        <td>${new Date(order.created_at).toLocaleDateString()}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    document.getElementById('allOrdersTable').innerHTML = tableHtml;
+                }
+            } catch (error) {
+                showMessage('Error loading orders', 'success');
+            }
+        }
+
+        async function loadShipmentsData() {
+            try {
+                const response = await fetch('/get_inventory.php?limit=50');
+                const data = await response.json();
+                
+                if (data.data) {
+                    const tableHtml = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>SKU</th>
+                                    <th>Zone</th>
+                                    <th>Current Stock</th>
+                                    <th>Min/Max</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.data.map(item => `
+                                    <tr>
+                                        <td>${item.product_name || 'N/A'}</td>
+                                        <td>${item.sku || 'N/A'}</td>
+                                        <td>${item.zone || 'N/A'}</td>
+                                        <td>${item.current_stock || 0}</td>
+                                        <td>${item.min_stock}/${item.max_stock}</td>
+                                        <td><span class="status-badge ${item.current_stock <= item.min_stock ? 'status-pending' : 'status-completed'}">${item.current_stock <= item.min_stock ? 'Low' : 'Good'}</span></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    document.getElementById('trackingTable').innerHTML = tableHtml;
+                }
+            } catch (error) {
+                showMessage('Error loading shipments', 'success');
+            }
+        }
+
+        async function loadInventoryData() {
+            loadShipmentsData(); // Same data
+        }
+
+        async function loadProductsData() {
+            try {
+                const response = await fetch('/get_products.php?limit=50');
+                const data = await response.json();
+                
+                if (data.data) {
+                    const tableHtml = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>SKU</th>
+                                    <th>Category</th>
+                                    <th>Price</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.data.map(product => `
+                                    <tr>
+                                        <td>${product.name || 'N/A'}</td>
+                                        <td>${product.sku || 'N/A'}</td>
+                                        <td>${product.category || 'N/A'}</td>
+                                        <td>₨${parseFloat(product.price || 0).toLocaleString('en-PK', {maximumFractionDigits: 2})}</td>
+                                        <td>
+                                            <button class="action-btn">Order</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    document.getElementById('productsTable').innerHTML = tableHtml;
+                }
+            } catch (error) {
+                showMessage('Error loading products', 'success');
+            }
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = 'message ' + type;
+            messageDiv.style.display = 'block';
+        }
+
+        function logout() {
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
+        }
+    </script>
+</body>
+</html>
