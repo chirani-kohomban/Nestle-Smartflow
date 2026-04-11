@@ -1,90 +1,169 @@
-import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { fetchApi } from '../api';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PackageOpen, ArrowRight } from 'lucide-react';
+import axios from 'axios';
+import { Package } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function Login() {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const { login } = useAuth();
-    const navigate = useNavigate();
+  const [isRegister, setIsRegister] = useState(false);
+  
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('password123'); // Default for demo
+  const [role, setRole] = useState('NESTLE_MANAGER'); // Default for register
+  
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        setError(null);
-        setLoading(true);
-        try {
-            const data = await fetchApi('/login', {
-                method: 'POST',
-                body: JSON.stringify({ username, password })
-            });
-            login(data.token, data.user);
-            navigate('/');
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    setIsLoading(true);
+    
+    try {
+      const endpoint = isRegister ? '/register' : '/login';
+      const payload = isRegister ? { username, password, role } : { username, password };
+      
+      const res = await axios.post(`${API_URL}${endpoint}`, payload);
+      const { token, user } = res.data;
+      
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      
+      if (isRegister) {
+          setSuccessMsg('Registration successful! Redirecting...');
+          setTimeout(() => routeUser(user.role), 1000);
+      } else {
+          routeUser(user.role);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Authentication failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-            <div className="glass max-w-md w-full p-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-12 bg-brand/5 rounded-full -mr-16 -mt-16 pointer-events-none" />
-                
-                <div className="flex flex-col items-center mb-8 relative z-10">
-                    <div className="w-16 h-16 bg-brand text-white rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                        <PackageOpen className="w-8 h-8" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-slate-800">SmartFlow</h1>
-                    <p className="text-slate-500 text-sm mt-1">Warehouse Management MVP</p>
-                </div>
+  const routeUser = (userRole) => {
+      switch(userRole) {
+        case 'NESTLE_MANAGER': navigate('/nestle-manager'); break;
+        case 'AREA_MANAGER': navigate('/area-manager'); break;
+        case 'ADMIN': navigate('/admin'); break;
+        case 'WAREHOUSE': navigate('/warehouse'); break;
+        case 'DISTRIBUTOR': navigate('/distributor'); break;
+        default: navigate('/'); break;
+      }
+  };
+  
+  const toggleMode = () => {
+      setIsRegister(!isRegister);
+      setError('');
+      setSuccessMsg('');
+      if (!isRegister) setPassword(''); // clear pass when switching to register
+      else setPassword('password123'); // reset to dummy when switching to login
+  };
 
-                <form onSubmit={handleLogin} className="space-y-5 relative z-10">
-                    {error && (
-                        <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-100">
-                            {error}
-                        </div>
-                    )}
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
-                        <input 
-                            type="text"
-                            required
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-slate-400"
-                            placeholder="admin or staff"
-                            value={username}
-                            onChange={e => setUsername(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                        <input 
-                            type="password"
-                            required
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-slate-400"
-                            placeholder="password123"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                        />
-                    </div>
-                    <button 
-                        type="submit" 
-                        disabled={loading}
-                        className="w-full bg-brand hover:bg-brandLight text-white font-medium py-3 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group"
-                    >
-                        {loading ? 'Logging in...' : 'Sign In'}
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                    
-                    <p className="text-xs text-center text-slate-400 mt-4">
-                        Test accounts: <br/> username: admin / password: password123 <br/> username: staff / password: password123
-                    </p>
-                </form>
-            </div>
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Dynamic Background Elements */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+      
+      <div className="relative z-10 bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 p-8 sm:p-10 rounded-3xl shadow-2xl w-full max-w-md">
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-blue-500/30">
+            <Package className="text-white w-8 h-8" />
+          </div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Nestlé SmartFlow</h1>
+          <p className="text-slate-400 text-sm mt-1 font-medium">Supply Chain Intelligence</p>
         </div>
-    );
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-xl mb-6 text-sm text-center font-medium shadow-inner">
+            {error}
+          </div>
+        )}
+        
+        {successMsg && (
+          <div className="bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 p-3 rounded-xl mb-6 text-sm text-center font-medium shadow-inner">
+            {successMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-sm font-semibold text-slate-300 mb-1.5 ml-1">Username</label>
+            <input 
+              type="text" 
+              className="w-full bg-slate-950/50 border-slate-700 rounded-xl shadow-inner p-3.5 text-white placeholder-slate-500 border focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g. john_doe"
+              required 
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-semibold text-slate-300 mb-1.5 ml-1">Password</label>
+            <input 
+              type="password" 
+              className="w-full bg-slate-950/50 border-slate-700 rounded-xl shadow-inner p-3.5 text-white placeholder-slate-500 border focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required 
+              minLength={isRegister ? 6 : 1}
+            />
+          </div>
+          
+          {isRegister && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-300 mb-1.5 ml-1">Select Role</label>
+              <select
+                className="w-full bg-slate-950/50 border-slate-700 rounded-xl shadow-inner p-3.5 text-white border focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                required
+              >
+                <option value="NESTLE_MANAGER">Nestle Manager</option>
+                <option value="AREA_MANAGER">Area Manager</option>
+                <option value="ADMIN">Administrator</option>
+                <option value="WAREHOUSE">Warehouse Staff</option>
+                <option value="DISTRIBUTOR">Delivery Distributor</option>
+              </select>
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-slate-600 disabled:to-slate-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 active:scale-[0.98] mt-2 block"
+          >
+            {isLoading ? 'Processing...' : (isRegister ? 'Claim Access' : 'Authenticate Portal')}
+          </button>
+        </form>
+        
+        <div className="mt-6 text-center">
+            <button 
+                type="button" 
+                onClick={toggleMode} 
+                className="text-sm text-blue-400 hover:text-blue-300 font-medium hover:underline transition-colors focus:outline-none"
+            >
+                {isRegister ? 'Already have an account? Sign In.' : 'Need to register? Request Access.'}
+            </button>
+        </div>
+        
+        {!isRegister && (
+            <div className="mt-6 text-xs text-slate-500 text-center font-medium p-4 bg-slate-950/30 rounded-xl border border-slate-800/80 leading-relaxed">
+              <span className="text-slate-400">Demo Accounts:</span><br/>
+              nestle_manager <span className="mx-1">•</span> area_manager <span className="mx-1">•</span> admin <span className="mx-1">•</span> warehouse <span className="mx-1">•</span> distributor<br/>
+              (Password: <span className="text-slate-300">password123</span>)
+            </div>
+        )}
+      </div>
+    </div>
+  );
 }

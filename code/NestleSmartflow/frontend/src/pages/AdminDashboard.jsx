@@ -15,7 +15,7 @@ export default function AdminDashboard() {
 
     const loadProducts = async () => {
         try {
-            const data = await fetchApi('/inventory');
+            const data = await fetchApi('/products');
             setProducts(data);
         } catch (err) {
             console.error(err);
@@ -77,9 +77,14 @@ export default function AdminDashboard() {
                     <h1 className="text-3xl font-extrabold bg-gradient-to-r from-brand to-brandLight bg-clip-text text-transparent">Product Management</h1>
                     <p className="text-slate-500 font-medium mt-1">Add, edit, and configure product catalogs.</p>
                 </div>
-                <button onClick={() => openModal()} className="relative z-10 bg-brand text-white px-5 py-2.5 rounded-xl shadow-[0_4px_14px_0_rgba(10,51,92,0.39)] hover:shadow-[0_6px_20px_rgba(10,51,92,0.23)] hover:bg-brandLight transition-all flex items-center gap-2 font-medium">
-                    <Plus className="w-5 h-5"/> New Product
-                </button>
+                <div className="flex gap-4">
+                  <button onClick={() => openModal()} className="relative z-10 bg-brand text-white px-5 py-2.5 rounded-xl shadow-[0_4px_14px_0_rgba(10,51,92,0.39)] hover:shadow-[0_6px_20px_rgba(10,51,92,0.23)] hover:bg-brandLight transition-all flex items-center gap-2 font-medium">
+                      <Plus className="w-5 h-5"/> New Product
+                  </button>
+                  <button onClick={() => { localStorage.clear(); window.location.href = '/'; }} className="relative z-10 bg-slate-800 text-slate-300 px-5 py-2.5 rounded-xl hover:bg-slate-700 transition-all flex items-center gap-2 font-medium border border-slate-700">
+                      Sign Out
+                  </button>
+                </div>
             </div>
 
             <div className="glass overflow-hidden">

@@ -3,274 +3,437 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
-const { verifyToken, requireAdmin, requireStaff } = require('./middleware');
+const { verifyToken } = require('./middleware'); // Assuming verifyToken is standard
 
 // --- AUTHENTICATION ---
-
-// POST /api/login -> Authenticate user, return JWT
+// POST /login -> Authenticate user, return role
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
-        
         const [rows] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
-        if (rows.length === 0) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
+        if (rows.length === 0) return res.status(401).json({ message: 'Invalid credentials' });
 
         const user = rows[0];
-        const passwordMatch = await bcrypt.compare(password, user.password_hash);
-        
-        if (!passwordMatch) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
+        const match = await bcrypt.compare(password, user.password_hash);
+        if (!match) return res.status(401).json({ message: 'Invalid credentials' });
 
-        // Generate JWT
         const token = jwt.sign(
-            { id: user.id, username: user.username, role: user.role }, 
+            { id: user.id, username: user.username, role: user.role },
             process.env.JWT_SECRET || 'supersecretjwtkey_for_student_project',
             { expiresIn: '12h' }
         );
 
-        res.json({
-            message: 'Login successful',
-            token,
-            user: { id: user.id, username: user.username, role: user.role }
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error during login' });
+        res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 
-
-// --- PRODUCTS & INVENTORY ---
-
-// GET /api/products -> List all products
-router.get('/products', verifyToken, async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT * FROM products ORDER BY id DESC');
-        res.json(rows);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to fetch products' });
-    }
-});
-
-// GET /api/products/:id -> Get single product inventory
-router.get('/products/:id', verifyToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const [productRows] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
-        
-        if (productRows.length === 0) {
-            return res.status(404).json({ message: 'Product not found' });
-        }
-
-        const [inventoryRows] = await db.query('SELECT quantity FROM inventory WHERE product_id = ?', [id]);
-        
-        res.json({
-            ...productRows[0],
-            inventory: inventoryRows.length > 0 ? inventoryRows[0].quantity : 0
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error fetching product' });
-    }
-});
-
-// POST /api/products -> Add new product (Admin Only)
-router.post('/products', verifyToken, requireAdmin, async (req, res) => {
+// POST /register -> Register a new user
+router.post('/register', async (req, res) => {
     const connection = await db.getConnection();
     try {
-        await connection.beginTransaction();
-        const { name, sku, unit, initialQuantity } = req.body;
+        const { username, password, role } = req.body;
         
-        if (!name || !sku || !unit) {
-            return res.status(400).json({ message: 'Missing required fields' });
+        if (!username || !password || !role) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+        
+        if (!['NESTLE_MANAGER', 'AREA_MANAGER', 'ADMIN', 'WAREHOUSE', 'DISTRIBUTOR'].includes(role)) {
+            return res.status(400).json({ message: 'Invalid role' });
         }
 
-        // Insert into products
-        const [productResult] = await connection.query(
-            'INSERT INTO products (name, sku, unit) VALUES (?, ?, ?)',
-            [name, sku, unit]
-        );
-        
-        const productId = productResult.insertId;
-        const startQty = initialQuantity ? parseInt(initialQuantity) : 0;
-
-        // Automatically create inventory entry
-        await connection.query(
-            'INSERT INTO inventory (product_id, quantity, last_updated_by) VALUES (?, ?, ?)',
-            [productId, startQty, req.user.id]
-        );
-
-        await connection.commit();
-        res.status(201).json({ message: 'Product created successfully', productId });
-    } catch (error) {
-        await connection.rollback();
-        console.error(error);
-        if (error.code === 'ER_DUP_ENTRY') {
-             res.status(409).json({ message: 'SKU already exists' });
-        } else {
-             res.status(500).json({ message: 'Server error creating product' });
+        // Check if user exists
+        const [existing] = await connection.query('SELECT id FROM users WHERE username = ?', [username]);
+        if (existing.length > 0) {
+            return res.status(409).json({ message: 'Username already exists' });
         }
+
+        const hash = await bcrypt.hash(password, 10);
+        
+        const [result] = await connection.query(
+            'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+            [username, hash, role]
+        );
+
+        // Auto-login after registration (optional, but convenient)
+        const token = jwt.sign(
+            { id: result.insertId, username, role },
+            process.env.JWT_SECRET || 'supersecretjwtkey_for_student_project',
+            { expiresIn: '12h' }
+        );
+
+        res.status(201).json({ 
+            message: 'Registered successfully',
+            token, 
+            user: { id: result.insertId, username, role } 
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error during registration' });
     } finally {
         connection.release();
     }
 });
 
-// PUT /api/products/:id -> Update product (Admin Only)
-router.put('/products/:id', verifyToken, requireAdmin, async (req, res) => {
+// --- RETAILERS ---
+router.get('/retailers', verifyToken, async (req, res) => {
     try {
-        const { id } = req.params;
+        const [rows] = await db.query('SELECT * FROM retailers');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching retailers' });
+    }
+});
+
+// --- PRODUCTS & INVENTORY ---
+router.get('/products', verifyToken, async (req, res) => {
+    try {
+        const [rows] = await db.query(`
+            SELECT p.*, i.quantity 
+            FROM products p 
+            LEFT JOIN inventory i ON p.id = i.product_id
+        `);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching products' });
+    }
+});
+
+// Admin add new product
+router.post('/products', verifyToken, async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const { name, sku, unit, initialQuantity } = req.body;
+        
+        const [prodResult] = await connection.query(
+            'INSERT INTO products (name, sku, unit) VALUES (?, ?, ?)',
+            [name, sku, unit]
+        );
+        const productId = prodResult.insertId;
+        
+        await connection.query(
+            'INSERT INTO inventory (product_id, quantity) VALUES (?, ?)',
+            [productId, parseInt(initialQuantity) || 0]
+        );
+        
+        await connection.commit();
+        res.status(201).json({ message: 'Product created', id: productId });
+    } catch (err) {
+        await connection.rollback();
+        console.error(err);
+        res.status(500).json({ message: 'Error creating product' });
+    } finally {
+        connection.release();
+    }
+});
+
+// Admin update product
+router.put('/products/:id', verifyToken, async (req, res) => {
+    try {
         const { name, sku, unit } = req.body;
-        
-        if (!name || !sku || !unit) {
-            return res.status(400).json({ message: 'Missing required fields' });
-        }
-        
         await db.query(
             'UPDATE products SET name = ?, sku = ?, unit = ? WHERE id = ?',
-            [name, sku, unit, id]
+            [name, sku, unit, req.params.id]
         );
-        res.json({ message: 'Product updated successfully' });
-    } catch (error) {
-        console.error(error);
-        if (error.code === 'ER_DUP_ENTRY') {
-             res.status(409).json({ message: 'SKU already exists' });
-        } else {
-             res.status(500).json({ message: 'Server error updating product' });
-        }
+        res.json({ message: 'Product updated' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error updating product' });
     }
 });
 
-// DELETE /api/products/:id -> Delete a product (Admin Only)
-router.delete('/products/:id', verifyToken, requireAdmin, async (req, res) => {
+// Admin delete product
+router.delete('/products/:id', verifyToken, async (req, res) => {
     try {
-        const { id } = req.params;
-        await db.query('DELETE FROM products WHERE id = ?', [id]);
-        res.json({ message: 'Product deleted successfully' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to delete product' });
+        await db.query('DELETE FROM products WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Product deleted' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error deleting product' });
     }
 });
 
-// PUT /api/products/:id/stock -> Update stock quantity (INCREMENT/DECREMENT via delta) - STAFF ONLY
-router.put('/products/:id/stock', verifyToken, requireStaff, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { delta, movementType } = req.body; // delta should be a number (positive for IN, negative for OUT)
-        
-        if (!delta || isNaN(delta)) {
-            return res.status(400).json({ message: 'Valid quantity delta is required' });
-        }
-
-        const connection = await db.getConnection();
-        try {
-            await connection.beginTransaction();
-            
-            const [rows] = await connection.query('SELECT quantity FROM inventory WHERE product_id = ? FOR UPDATE', [id]);
-            
-            let newQty = 0;
-            if (rows.length === 0) {
-                newQty = parseInt(delta);
-                await connection.query(
-                    'INSERT INTO inventory (product_id, quantity, last_updated_by) VALUES (?, ?, ?)',
-                    [id, newQty, req.user.id]
-                );
-            } else {
-                const currentQty = rows[0].quantity;
-                newQty = currentQty + parseInt(delta);
-                
-                if (newQty < 0) {
-                     await connection.rollback();
-                     return res.status(400).json({ message: 'Insufficient stock. Transaction cannot result in negative inventory.' });
-                }
-
-                await connection.query(
-                    'UPDATE inventory SET quantity = ?, last_updated_by = ? WHERE product_id = ?',
-                    [newQty, req.user.id, id]
-                );
-            }
-            
-            // Insert log
-            await connection.query(
-                'INSERT INTO inventory_logs (product_id, user_id, quantity_change, stock_after, action_type) VALUES (?, ?, ?, ?, ?)',
-                [id, req.user.id, parseInt(delta), newQty, movementType]
-            );
-            
-            await connection.commit();
-            res.json({ message: 'Stock updated successfully' });
-        } catch(txnErr) {
-            await connection.rollback();
-            throw txnErr;
-        } finally {
-            connection.release();
-        }
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to update stock' });
-    }
-});
-
-// GET /api/inventory -> Return full inventory dashboard
-router.get('/inventory', verifyToken, async (req, res) => {
+// --- ORDERS ---
+// GET /orders -> List orders
+router.get('/orders', verifyToken, async (req, res) => {
     try {
         const sql = `
-            SELECT 
-                p.id, 
-                p.sku, 
-                p.name, 
-                p.unit, 
-                IFNULL(i.quantity, 0) as quantity,
-                u.username as last_updated_by_user,
-                i.last_updated_at
-            FROM products p
-            LEFT JOIN inventory i ON p.id = i.product_id
-            LEFT JOIN users u ON i.last_updated_by = u.id
-            ORDER BY p.id DESC
+            SELECT o.*, r.name as retailer_name, u.username as manager_name 
+            FROM orders o
+            LEFT JOIN retailers r ON o.retailer_id = r.id
+            LEFT JOIN users u ON o.manager_id = u.id
+            ORDER BY o.created_at DESC
         `;
         const [rows] = await db.query(sql);
+        
+        // Fetch order items manually for simplicity
+        for (let row of rows) {
+            const [items] = await db.query(`
+                SELECT oi.*, p.name as product_name
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                WHERE oi.order_id = ?
+            `, [row.id]);
+            row.items = items;
+        }
+
         res.json(rows);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to load inventory dashboard' });
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching orders' });
     }
 });
 
-// GET /api/reports -> Analytics data for Management
-router.get('/reports', verifyToken, async (req, res) => {
+// POST /orders -> Create new order
+router.post('/orders', verifyToken, async (req, res) => {
+    // Expected: { retailer_id: 1, items: [{ product_id: 1, quantity: 10 }] }
+    const connection = await db.getConnection();
     try {
-        // Daily shipments logic -> Group by date where action_type='OUT'
-        const sqlShipments = `
-            SELECT DATE(created_at) as date, ABS(SUM(quantity_change)) as total_shipped
-            FROM inventory_logs 
-            WHERE action_type = 'OUT'
-            GROUP BY DATE(created_at)
-            ORDER BY date DESC
-            LIMIT 7
-        `;
-        // Product Distribution logic
-        const sqlDistribution = `
-            SELECT p.name, IFNULL(i.quantity, 0) as quantity
-            FROM products p
-            LEFT JOIN inventory i ON p.id = i.product_id
-            WHERE i.quantity > 0
-        `;
+        await connection.beginTransaction();
+        const { retailer_id, items } = req.body;
+
+        const [orderResult] = await connection.query(
+            'INSERT INTO orders (manager_id, retailer_id) VALUES (?, ?)',
+            [req.user.id, retailer_id]
+        );
+        const orderId = orderResult.insertId;
+
+        for (const item of items) {
+            await connection.query(
+                'INSERT INTO order_items (order_id, product_id, quantity) VALUES (?, ?, ?)',
+                [orderId, item.product_id, item.quantity]
+            );
+        }
+
+        await connection.commit();
+        res.json({ message: 'Order created', orderId });
+    } catch (err) {
+        await connection.rollback();
+        console.error(err);
+        res.status(500).json({ message: 'Error creating order' });
+    } finally {
+        connection.release();
+    }
+});
+
+// GET /orders/recommendation/:retailerId -> Get average of last 3 orders for a retailer
+router.get('/orders/recommendation/:retailerId', verifyToken, async (req, res) => {
+    try {
+        const { retailerId } = req.params;
+        // Get last 3 orders for this retailer
+        const [orders] = await db.query(
+            'SELECT id FROM orders WHERE retailer_id = ? ORDER BY created_at DESC LIMIT 3',
+            [retailerId]
+        );
+
+        if (orders.length === 0) {
+             return res.json({ message: 'No past orders to recommend from', recommendations: [] });
+        }
+
+        const orderIds = orders.map(o => o.id);
+        // Average product quantities
+        const [items] = await db.query(`
+            SELECT product_id, p.name as product_name, AVG(quantity) as avg_quantity
+            FROM order_items oi
+            JOIN products p ON oi.product_id = p.id
+            WHERE order_id IN (?)
+            GROUP BY product_id
+        `, [orderIds]);
+
+        const recs = items.map(item => ({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            recommended_quantity: Math.ceil(item.avg_quantity)
+        }));
+
+        res.json({ recommendations: recs });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error fetching recommendations' });
+    }
+});
+
+// --- DISPATCH (WAREHOUSE) ---
+// POST /dispatch -> Allocate stock and create delivery
+router.post('/dispatch', verifyToken, async (req, res) => {
+    // Expected: { order_id: 1, distributor_id: 3 }
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const { order_id, distributor_id } = req.body;
+
+        // 1. Get order items
+        const [items] = await connection.query('SELECT product_id, quantity FROM order_items WHERE order_id = ?', [order_id]);
         
-        const [shipments] = await db.query(sqlShipments);
-        const [distribution] = await db.query(sqlDistribution);
+        // 2. Check and reduce inventory
+        for (const item of items) {
+            const [inv] = await connection.query('SELECT id, quantity FROM inventory WHERE product_id = ? FOR UPDATE', [item.product_id]);
+            if (inv.length === 0 || inv[0].quantity < item.quantity) {
+                throw new Error(`Insufficient stock for product ID: ${item.product_id}`);
+            }
+            await connection.query('UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?', [item.quantity, item.product_id]);
+        }
+
+        // 3. Update order status to DISPATCHED
+        await connection.query("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [order_id]);
+
+        // 4. Create delivery
+        await connection.query(
+            "INSERT INTO deliveries (order_id, distributor_id, status) VALUES (?, ?, 'ASSIGNED')",
+            [order_id, distributor_id]
+        );
+
+        await connection.commit();
+        res.json({ message: 'Order dispatched successfully' });
+    } catch (err) {
+        await connection.rollback();
+        console.error(err);
+        res.status(400).json({ message: err.message || 'Error dispatching order' });
+    } finally {
+        connection.release();
+    }
+});
+
+router.get('/distributors', verifyToken, async (req, res) => {
+    try {
+         const [rows] = await db.query("SELECT id, username FROM users WHERE role = 'DISTRIBUTOR'");
+         res.json(rows);
+    } catch (err) {
+         res.status(500).json({ message: 'Error fetching distributors' });
+    }
+});
+
+// --- DELIVERIES (DISTRIBUTOR) ---
+// GET /deliveries -> Fetch deliveries for logged in distributor
+router.get('/deliveries', verifyToken, async (req, res) => {
+    try {
+        const distributor_id = req.user.id;
+        let sql = `
+            SELECT d.id as delivery_id, d.status as delivery_status,
+                   o.id as order_id, o.payment_status,
+                   r.name as retailer_name, r.address, r.lat, r.lng
+            FROM deliveries d
+            JOIN orders o ON d.order_id = o.id
+            JOIN retailers r ON o.retailer_id = r.id
+        `;
+        const params = [];
+        // If not manager or warehouse, see only own
+        if (req.user.role === 'DISTRIBUTOR') {
+             sql += ` WHERE d.distributor_id = ? ORDER BY d.delivery_order ASC, d.id ASC`;
+             params.push(distributor_id);
+        } else {
+             sql += ` ORDER BY d.created_at DESC`;
+        }
+
+        const [rows] = await db.query(sql, params);
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error fetching deliveries' });
+    }
+});
+
+// POST /deliveries/update-status -> Mark as DELIVERED
+router.post('/deliveries/update-status', verifyToken, async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const { delivery_id } = req.body;
+
+        await connection.query(
+            "UPDATE deliveries SET status = 'DELIVERED', delivery_time = NOW() WHERE id = ?",
+            [delivery_id]
+        );
+
+        // Mark order as Delivered and Paid
+        const [del] = await connection.query('SELECT order_id FROM deliveries WHERE id = ?', [delivery_id]);
+        if (del.length > 0) {
+            await connection.query(
+                "UPDATE orders SET status = 'DELIVERED', payment_status = 'PAID' WHERE id = ?",
+                [del[0].order_id]
+            );
+        }
+
+        await connection.commit();
+        res.json({ message: 'Delivery marked as complete and order paid' });
+    } catch (err) {
+        await connection.rollback();
+        console.error(err);
+        res.status(500).json({ message: 'Error updating delivery status' });
+    } finally {
+        connection.release();
+    }
+});
+
+// --- ROUTE OPTIMIZATION ---
+// Simple nearest neighbor starting from a dummy warehouse location
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c; // Distance in km
+}
+
+router.get('/route', verifyToken, async (req, res) => {
+    try {
+        const distributor_id = req.user.id;
         
-        // Reverse shipments to be chronological
-        res.json({
-            shipments: shipments.reverse(),
-            distribution
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to load reports' });
+        // Get pending deliveries for distributor
+        const [deliveries] = await db.query(`
+            SELECT d.id as delivery_id, r.id as retailer_id, r.name, r.address, r.lat, r.lng
+            FROM deliveries d
+            JOIN orders o ON d.order_id = o.id
+            JOIN retailers r ON o.retailer_id = r.id
+            WHERE d.distributor_id = ? AND d.status = 'ASSIGNED'
+        `, [distributor_id]);
+
+        if (deliveries.length === 0) return res.json({ route: [] });
+
+        // Warehouse start location (dummy coord, e.g., Colombo SL)
+        const warehouse = { lat: 6.9271, lng: 79.8612 };
+        
+        let path = [];
+        let currentLocation = warehouse;
+        let unvisited = [...deliveries];
+
+        // Nearest Neighbor Logic
+        while (unvisited.length > 0) {
+            let nearestIdx = 0;
+            let minDistance = Infinity;
+
+            for (let i = 0; i < unvisited.length; i++) {
+                const dist = getDistance(
+                    currentLocation.lat, currentLocation.lng,
+                    unvisited[i].lat, unvisited[i].lng
+                );
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    nearestIdx = i;
+                }
+            }
+
+            const nextStop = unvisited.splice(nearestIdx, 1)[0];
+            path.push(nextStop);
+            currentLocation = nextStop;
+        }
+
+        // Update database with sequence to save it
+        for (let i = 0; i < path.length; i++) {
+            await db.query('UPDATE deliveries SET delivery_order = ? WHERE id = ?', [i + 1, path[i].delivery_id]);
+        }
+
+        res.json({ message: 'Route optimized', route: path });
+
+    } catch (err) {
+        console.error(err);
+         res.status(500).json({ message: 'Error calculating route' });
     }
 });
 

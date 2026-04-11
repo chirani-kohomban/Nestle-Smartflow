@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('ADMIN', 'STAFF', 'MANAGER') NOT NULL DEFAULT 'STAFF',
+    role ENUM('NESTLE_MANAGER', 'AREA_MANAGER', 'ADMIN', 'WAREHOUSE', 'DISTRIBUTOR') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -16,11 +16,10 @@ CREATE TABLE IF NOT EXISTS products (
     name VARCHAR(255) NOT NULL,
     sku VARCHAR(100) NOT NULL UNIQUE,
     unit VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Inventory Table (1-1 relationship with products)
+-- 3. Inventory Table
 CREATE TABLE IF NOT EXISTS inventory (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT NOT NULL,
@@ -31,35 +30,47 @@ CREATE TABLE IF NOT EXISTS inventory (
     FOREIGN KEY (last_updated_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- 4. Inventory Logs Table (Transaction ledger)
-CREATE TABLE IF NOT EXISTS inventory_logs (
+-- 4. Retailers Table (for Route Optimization & Delivery)
+CREATE TABLE IF NOT EXISTS retailers (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    product_id INT NOT NULL,
-    user_id INT NOT NULL,
-    quantity_change INT NOT NULL,
-    stock_after INT NOT NULL,
-    action_type ENUM('IN', 'OUT', 'INITIAL') NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    name VARCHAR(255) NOT NULL,
+    address VARCHAR(255) NOT NULL,
+    lat DECIMAL(10,8) NOT NULL,
+    lng DECIMAL(11,8) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Seed Data
--- Note: In a production system, passwords MUST be hashed.
--- Here we're using bcrypt hashes for the word "password123".
--- $2b$10$w8T.N0Y/9QhZ2EItS7zEtuV3H4YjW.uWkUeFzI8.6GzU1K5A0cKHO = "password123"
+-- 5. Orders Table
+CREATE TABLE IF NOT EXISTS orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    manager_id INT,
+    retailer_id INT NOT NULL,
+    status ENUM('PENDING', 'ALLOCATED', 'DISPATCHED', 'DELIVERED') NOT NULL DEFAULT 'PENDING',
+    payment_status ENUM('UNPAID', 'PAID') NOT NULL DEFAULT 'UNPAID',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (retailer_id) REFERENCES retailers(id) ON DELETE CASCADE
+);
 
-INSERT IGNORE INTO users (username, password_hash, role) VALUES 
-('admin', '$2b$10$w8T.N0Y/9QhZ2EItS7zEtuV3H4YjW.uWkUeFzI8.6GzU1K5A0cKHO', 'ADMIN'),
-('staff', '$2b$10$w8T.N0Y/9QhZ2EItS7zEtuV3H4YjW.uWkUeFzI8.6GzU1K5A0cKHO', 'STAFF'),
-('manager', '$2b$10$w8T.N0Y/9QhZ2EItS7zEtuV3H4YjW.uWkUeFzI8.6GzU1K5A0cKHO', 'MANAGER');
+-- 6. Order Items Table
+CREATE TABLE IF NOT EXISTS order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
 
--- Seed Products
-INSERT IGNORE INTO products (id, name, sku, unit) VALUES 
-(1, 'Nespresso Pods - Columbia', 'NES-POD-COL', 'Pack'),
-(2, 'KitKat Chunky', 'KIT-CHK-01', 'Box');
-
--- Seed Inventory
-INSERT IGNORE INTO inventory (product_id, quantity, last_updated_by) VALUES 
-(1, 500, 1),
-(2, 1200, 1);
+-- 7. Deliveries Table
+CREATE TABLE IF NOT EXISTS deliveries (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    distributor_id INT,
+    status ENUM('PENDING', 'ASSIGNED', 'DELIVERED') NOT NULL DEFAULT 'PENDING',
+    delivery_order INT, -- For route optimization sequence
+    delivery_time TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (distributor_id) REFERENCES users(id) ON DELETE SET NULL
+);
