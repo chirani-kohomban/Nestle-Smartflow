@@ -87,6 +87,20 @@ router.get('/retailers', verifyToken, async (req, res) => {
     }
 });
 
+router.post('/retailers', verifyToken, async (req, res) => {
+    try {
+        const { name, address, lat, lng } = req.body;
+        const [result] = await db.query(
+            'INSERT INTO retailers (name, address, lat, lng) VALUES (?, ?, ?, ?)',
+            [name, address, lat, lng]
+        );
+        res.status(201).json({ message: 'Retailer created', id: result.insertId });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error creating retailer' });
+    }
+});
+
 // --- PRODUCTS & INVENTORY ---
 router.get('/products', verifyToken, async (req, res) => {
     try {

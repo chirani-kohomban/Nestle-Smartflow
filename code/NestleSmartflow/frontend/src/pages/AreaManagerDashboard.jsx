@@ -11,6 +11,11 @@ export default function AreaManagerDashboard() {
   const [selectedRetailer, setSelectedRetailer] = useState('');
   const [orderItems, setOrderItems] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
+  
+  const [showModal, setShowModal] = useState(false);
+  const [retailerForm, setRetailerForm] = useState({ name: '', address: '', lat: '', lng: '' });
+  const [actionLoading, setActionLoading] = useState(false);
+  
   const navigate = useNavigate();
 
   const token = localStorage.getItem('token');
@@ -90,6 +95,21 @@ export default function AreaManagerDashboard() {
     }
   };
 
+  const handleRetailerSubmit = async (e) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      await axios.post(`${API_URL}/retailers`, retailerForm, { headers: { Authorization: `Bearer ${token}` } });
+      setShowModal(false);
+      setRetailerForm({ name: '', address: '', lat: '', lng: '' });
+      fetchData();
+    } catch (err) {
+      alert('Error creating retailer');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.clear();
     navigate('/');
@@ -113,7 +133,12 @@ export default function AreaManagerDashboard() {
           </h2>
           <form onSubmit={submitOrder} className="space-y-5 flex-1">
             <div>
-              <label className="block text-sm font-semibold text-slate-400 mb-2 ml-1">Select Retailer Location</label>
+              <div className="flex justify-between items-center mb-2 ml-1">
+                <label className="block text-sm font-semibold text-slate-400">Select Retailer Location</label>
+                <button type="button" onClick={() => setShowModal(true)} className="text-xs bg-brand text-blue-400 hover:text-blue-300 transition-colors font-medium hover:underline inline-flex items-center">
+                  + New Retailer
+                </button>
+              </div>
               <select 
                 className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner"
                 value={selectedRetailer}
@@ -179,6 +204,40 @@ export default function AreaManagerDashboard() {
         </div>
 
       </div>
+
+      {/* Add Retailer Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl max-w-md w-full p-8 animate-in zoom-in-95">
+            <h2 className="text-2xl font-bold mb-6 text-white tracking-tight">New Retailer</h2>
+            <form onSubmit={handleRetailerSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm font-semibold text-slate-400">Store Name</label>
+                <input required className="w-full mt-1.5 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:ring-2 focus:ring-blue-500/50 outline-none" value={retailerForm.name} onChange={e=>setRetailerForm({...retailerForm, name: e.target.value})} placeholder="e.g. City Supermarket" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-slate-400">Complete Address</label>
+                <input required className="w-full mt-1.5 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:ring-2 focus:ring-blue-500/50 outline-none" value={retailerForm.address} onChange={e=>setRetailerForm({...retailerForm, address: e.target.value})} placeholder="e.g. 15 Baker St, NY" />
+              </div>
+              <div className="grid grid-cols-2 gap-4 border-t border-slate-800 pt-4 mt-4">
+                <div className="col-span-2"><p className="text-xs text-slate-500 font-medium pb-1">Geodata (Required for Distributor Delivery Map)</p></div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-400">Latitude</label>
+                  <input required type="number" step="any" className="w-full mt-1.5 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:ring-2 focus:ring-blue-500/50 outline-none" value={retailerForm.lat} onChange={e=>setRetailerForm({...retailerForm, lat: e.target.value})} placeholder="6.9319" />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-400">Longitude</label>
+                  <input required type="number" step="any" className="w-full mt-1.5 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:ring-2 focus:ring-blue-500/50 outline-none" value={retailerForm.lng} onChange={e=>setRetailerForm({...retailerForm, lng: e.target.value})} placeholder="79.8478" />
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end mt-8 pt-4">
+                <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 rounded-xl font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="submit" disabled={actionLoading} className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-colors disabled:opacity-50">{actionLoading ? 'Saving...' : 'Save Retailer'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

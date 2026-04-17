@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Package } from 'lucide-react';
+import { Package, Eye, EyeOff } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -11,6 +11,7 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('password123'); // Default for demo
   const [role, setRole] = useState('NESTLE_MANAGER'); // Default for register
+  const [showPassword, setShowPassword] = useState(false);
   
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -108,15 +109,24 @@ export default function Login() {
           
           <div>
             <label className="block text-sm font-semibold text-slate-300 mb-1.5 ml-1">Password</label>
-            <input 
-              type="password" 
-              className="w-full bg-slate-950/50 border-slate-700 rounded-xl shadow-inner p-3.5 text-white placeholder-slate-500 border focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required 
-              minLength={isRegister ? 6 : 1}
-            />
+            <div className="relative">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                className="w-full bg-slate-950/50 border-slate-700 rounded-xl shadow-inner p-3.5 pr-12 text-white placeholder-slate-500 border focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required 
+                minLength={isRegister ? 6 : 1}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors focus:outline-none"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
           
           {isRegister && (
@@ -142,7 +152,7 @@ export default function Login() {
             disabled={isLoading}
             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-slate-600 disabled:to-slate-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/30 active:scale-[0.98] mt-2 block"
           >
-            {isLoading ? 'Processing...' : (isRegister ? 'Claim Access' : 'Authenticate Portal')}
+            {isLoading ? 'Processing...' : (isRegister ? 'Claim Access' : 'Login Portal')}
           </button>
         </form>
         
