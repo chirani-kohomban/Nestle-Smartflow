@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Package, Eye, EyeOff } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
+const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
 
 export default function Login() {
   const [isRegister, setIsRegister] = useState(false);

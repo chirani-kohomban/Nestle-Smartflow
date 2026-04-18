@@ -4,7 +4,7 @@ import { Clock, LogOut, BarChart3, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
+const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
 
 export default function NestleManagerDashboard() {
   const [orders, setOrders] = useState([]);

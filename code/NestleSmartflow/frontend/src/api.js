@@ -1,4 +1,4 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
+export const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
 
 export const fetchApi = async (endpoint, options = {}) => {
     const token = localStorage.getItem('token');
