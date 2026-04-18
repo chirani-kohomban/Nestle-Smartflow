@@ -25,7 +25,11 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// Start Server
-app.listen(PORT, () => {
-    console.log(`SmartFlow Server running on port ${PORT}`);
-});
+// Start Server (Only if not running in Vercel Serverless)
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`SmartFlow Server running on port ${PORT}`);
+    });
+}
+
+module.exports = app;
