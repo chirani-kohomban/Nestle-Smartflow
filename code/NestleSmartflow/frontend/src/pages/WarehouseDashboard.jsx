@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Truck, LogOut, PackageCheck, Box } from 'lucide-react';
+import { Truck, LogOut, PackageCheck, Box, Edit2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
@@ -10,6 +10,7 @@ export default function WarehouseDashboard() {
   const [distributors, setDistributors] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [selectedDistributor, setSelectedDistributor] = useState({});
+  const [adjustmentModal, setAdjustmentModal] = useState({ show: false, product: null, change: '' });
   const navigate = useNavigate();
 
   const token = localStorage.getItem('token');
@@ -52,6 +53,21 @@ export default function WarehouseDashboard() {
       fetchData(); // Refresh UI
     } catch (err) {
       alert(err.response?.data?.message || 'Error dispatching order. Possibly insufficient stock.');
+    }
+  };
+
+  const handleAdjustStock = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API_URL}/inventory/adjust`, {
+        product_id: adjustmentModal.product.id,
+        quantity_change: parseInt(adjustmentModal.change)
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      
+      setAdjustmentModal({ show: false, product: null, change: '' });
+      fetchData(); // Refresh UI to match
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error updating stock.');
     }
   };
 
@@ -152,12 +168,21 @@ export default function WarehouseDashboard() {
                   <div className="font-bold text-slate-200 text-sm">{prod.name}</div>
                   <div className="text-[10px] text-slate-500 font-mono mt-1 uppercase tracking-wider">{prod.sku}</div>
                 </div>
-                <div className={`text-xl font-black px-3 py-1 rounded-lg border ${
-                  prod.quantity > 50 
-                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-inner' 
-                    : 'text-rose-400 bg-rose-500/10 border-rose-500/20 shadow-inner'
-                  }`}>
-                  {prod.quantity || 0}
+                <div className="flex items-center gap-3">
+                  <div className={`text-xl font-black px-3 py-1 rounded-lg border ${
+                    prod.quantity > 50 
+                      ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-inner' 
+                      : 'text-rose-400 bg-rose-500/10 border-rose-500/20 shadow-inner'
+                    }`}>
+                    {prod.quantity || 0}
+                  </div>
+                  <button 
+                    onClick={() => setAdjustmentModal({ show: true, product: prod, change: '' })}
+                    className="p-2 bg-slate-800 text-slate-400 hover:text-blue-400 hover:bg-slate-700 rounded-lg transition-colors border border-slate-700"
+                    title="Adjust Stock"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -165,6 +190,36 @@ export default function WarehouseDashboard() {
         </div>
 
       </div>
+
+      {adjustmentModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl max-w-sm w-full p-8">
+            <h2 className="text-xl font-bold mb-2 text-white">Adjust Stock</h2>
+            <p className="text-sm text-slate-400 mb-6 border-b border-slate-800 pb-4">
+              Updating master inventory count for <br/><strong className="text-blue-400">{adjustmentModal.product.name}</strong>
+            </p>
+            
+            <form onSubmit={handleAdjustStock} className="space-y-4">
+              <div>
+                <label className="text-sm font-semibold text-slate-300">Quantity Adjustment</label>
+                <input 
+                  type="number" 
+                  required 
+                  className="w-full mt-2 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:ring-2 focus:ring-blue-500/50 outline-none text-center" 
+                  value={adjustmentModal.change} 
+                  onChange={e => setAdjustmentModal({...adjustmentModal, change: e.target.value})} 
+                  placeholder="+50, -10, etc." 
+                />
+                <p className="text-xs text-slate-500 mt-2 text-center">Use negative numbers to remove damaged stock.</p>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-slate-800 mt-6">
+                <button type="button" onClick={() => setAdjustmentModal({ show: false, product: null, change: ''})} className="flex-1 py-2.5 rounded-xl font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="submit" className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-colors">Confirm</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

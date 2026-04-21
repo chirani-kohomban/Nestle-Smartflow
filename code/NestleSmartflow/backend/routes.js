@@ -115,6 +115,40 @@ router.get('/products', verifyToken, async (req, res) => {
     }
 });
 
+// Warehouse adjust stock manual entry
+router.post('/inventory/adjust', verifyToken, async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const { product_id, quantity_change } = req.body;
+        
+        // Ensure negative changes do not drop stock securely
+        const [inv] = await connection.query('SELECT quantity FROM inventory WHERE product_id = ? FOR UPDATE', [product_id]);
+        if (inv.length === 0) return res.status(404).json({ message: 'Product not found in inventory.'});
+        
+        const currentQty = parseInt(inv[0].quantity) || 0;
+        const finalQty = currentQty + parseInt(quantity_change);
+        
+        if (finalQty < 0) {
+            throw new Error(`Cannot reduce stock below 0. Current stock is ${currentQty}.`);
+        }
+
+        await connection.query(
+            'UPDATE inventory SET quantity = ?, last_updated_by = ? WHERE product_id = ?',
+            [finalQty, req.user.id, product_id]
+        );
+        
+        await connection.commit();
+        res.json({ message: 'Stock adjusted successfully', newQuantity: finalQty });
+    } catch (err) {
+        await connection.rollback();
+        console.error(err);
+        res.status(400).json({ message: err.message || 'Error adjusting stock' });
+    } finally {
+        connection.release();
+    }
+});
+
 // Admin add new product
 router.post('/products', verifyToken, async (req, res) => {
     const connection = await db.getConnection();
