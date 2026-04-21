@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Clock, LogOut, BarChart3, Download } from 'lucide-react';
+import { Clock, LogOut, BarChart3, Download, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -8,6 +8,7 @@ const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
 
 export default function NestleManagerDashboard() {
   const [orders, setOrders] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
 
   const token = localStorage.getItem('token');
@@ -78,6 +79,14 @@ export default function NestleManagerDashboard() {
   
   const chartData = getChartData();
 
+  const filteredOrders = orders.filter(o => 
+    o.retailer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    o.id?.toString().includes(searchTerm) ||
+    o.status?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    o.payment_status?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center p-4 lg:p-8 relative selection:bg-blue-500/30 selection:text-blue-200">
       <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-blue-900/10 rounded-full blur-[150px] pointer-events-none"></div>
@@ -113,12 +122,25 @@ export default function NestleManagerDashboard() {
 
         {/* Order History Panel */}
         <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8">
-          <h2 className="text-xl font-bold mb-6 flex items-center text-white tracking-tight">
-            <div className="bg-slate-800 p-2 rounded-xl mr-3 shadow-inner border border-slate-700">
-              <Clock className="text-slate-300 w-5 h-5" />
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <h2 className="text-xl font-bold flex items-center text-white tracking-tight">
+              <div className="bg-slate-800 p-2 rounded-xl mr-3 shadow-inner border border-slate-700">
+                <Clock className="text-slate-300 w-5 h-5" />
+              </div>
+              Active & Past Orders
+            </h2>
+            
+            <div className="relative w-full sm:w-64">
+              <input 
+                type="text" 
+                placeholder="Search ledger..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-950/80 border border-slate-700 rounded-xl py-2 pl-10 pr-4 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner"
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
             </div>
-            Active & Past Orders
-          </h2>
+          </div>
           <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -132,7 +154,7 @@ export default function NestleManagerDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50 text-sm">
-                {orders.map(o => (
+                {filteredOrders.map(o => (
                   <tr key={o.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-4 font-mono text-slate-500 font-medium">#{o.id}</td>
                     <td className="p-4 font-semibold text-slate-200">{o.retailer_name}</td>
@@ -164,7 +186,7 @@ export default function NestleManagerDashboard() {
                     <td className="p-4 text-slate-500 text-right tabular-nums">{new Date(o.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
-                {orders.length === 0 && (
+                {filteredOrders.length === 0 && (
                   <tr><td colSpan="6" className="text-center p-8 text-slate-500 font-medium">No ledger entries found.</td></tr>
                 )}
               </tbody>
