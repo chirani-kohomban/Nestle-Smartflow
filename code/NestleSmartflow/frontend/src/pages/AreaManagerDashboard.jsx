@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { PackagePlus, LogOut, Sparkles } from 'lucide-react';
+import { PackagePlus, LogOut, Sparkles, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
@@ -15,6 +15,29 @@ export default function AreaManagerDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [retailerForm, setRetailerForm] = useState({ name: '', address: '', lat: '', lng: '' });
   const [actionLoading, setActionLoading] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+
+  const fetchCoordinates = async () => {
+    if (!retailerForm.address) return alert('Please enter an address first');
+    setIsGeocoding(true);
+    try {
+      // Free Nominatim OpenStreetMap Geocoding API
+      const res = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(retailerForm.address)}`);
+      if (res.data && res.data.length > 0) {
+        setRetailerForm({ 
+          ...retailerForm, 
+          lat: parseFloat(res.data[0].lat).toFixed(6), 
+          lng: parseFloat(res.data[0].lon).toFixed(6) 
+        });
+      } else {
+        alert('Location not found. Please try a more specific address.');
+      }
+    } catch (err) {
+      alert('Error fetching coordinates');
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
   
   const navigate = useNavigate();
 
@@ -217,7 +240,17 @@ export default function AreaManagerDashboard() {
               </div>
               <div>
                 <label className="text-sm font-semibold text-slate-400">Complete Address</label>
-                <input required className="w-full mt-1.5 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:ring-2 focus:ring-blue-500/50 outline-none" value={retailerForm.address} onChange={e=>setRetailerForm({...retailerForm, address: e.target.value})} placeholder="e.g. 15 Baker St, NY" />
+                <div className="relative mt-1.5 flex items-center">
+                  <input required className="w-full pl-4 pr-32 py-3 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:ring-2 focus:ring-blue-500/50 outline-none" value={retailerForm.address} onChange={e=>setRetailerForm({...retailerForm, address: e.target.value})} placeholder="e.g. 15 Baker St, NY" />
+                  <button 
+                    type="button" 
+                    onClick={fetchCoordinates}
+                    disabled={isGeocoding}
+                    className="absolute right-1 top-1 bottom-1 px-3 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 font-semibold rounded-lg flex items-center text-xs transition-colors disabled:opacity-50"
+                  >
+                    <MapPin className="w-3 h-3 mr-1" /> {isGeocoding ? 'Finding...' : 'Auto-Fill'}
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4 border-t border-slate-800 pt-4 mt-4">
                 <div className="col-span-2"><p className="text-xs text-slate-500 font-medium pb-1">Geodata (Required for Distributor Delivery Map)</p></div>
