@@ -27,7 +27,7 @@ export default function Login() {
     
     try {
       const endpoint = isRegister ? '/register' : '/login';
-      const payload = isRegister ? { username, password, role } : { username, password };
+      const payload = isRegister ? { username, password, role, retailer_id: role === 'RETAILER' ? 1 : undefined } : { username, password };
       
       const res = await axios.post(`${API_URL}${endpoint}`, payload);
       const { token, user } = res.data;
@@ -55,6 +55,7 @@ export default function Login() {
         case 'ADMIN': navigate('/admin'); break;
         case 'WAREHOUSE': navigate('/warehouse'); break;
         case 'DISTRIBUTOR': navigate('/distributor'); break;
+        case 'RETAILER': navigate('/retailer'); break;
         default: navigate('/'); break;
       }
   };
@@ -143,6 +144,7 @@ export default function Login() {
                 <option value="ADMIN">Administrator</option>
                 <option value="WAREHOUSE">Warehouse Staff</option>
                 <option value="DISTRIBUTOR">Delivery Distributor</option>
+                <option value="RETAILER">Retailer</option>
               </select>
             </div>
           )}

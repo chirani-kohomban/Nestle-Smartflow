@@ -6,6 +6,7 @@ import NestleManagerDashboard from './pages/NestleManagerDashboard';
 import AreaManagerDashboard from './pages/AreaManagerDashboard';
 import WarehouseDashboard from './pages/WarehouseDashboard';
 import DistributorDashboard from './pages/DistributorDashboard';
+import RetailerDashboard from './pages/RetailerDashboard';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/area-manager" element={<AreaManagerDashboard />} />
         <Route path="/warehouse" element={<WarehouseDashboard />} />
         <Route path="/distributor" element={<DistributorDashboard />} />
+        <Route path="/retailer" element={<RetailerDashboard />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

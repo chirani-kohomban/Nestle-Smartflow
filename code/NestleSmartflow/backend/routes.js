@@ -40,7 +40,7 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'All fields are required' });
         }
         
-        if (!['NESTLE_MANAGER', 'AREA_MANAGER', 'ADMIN', 'WAREHOUSE', 'DISTRIBUTOR'].includes(role)) {
+        if (!['NESTLE_MANAGER', 'AREA_MANAGER', 'ADMIN', 'WAREHOUSE', 'DISTRIBUTOR', 'RETAILER'].includes(role)) {
             return res.status(400).json({ message: 'Invalid role' });
         }
 
@@ -56,6 +56,10 @@ router.post('/register', async (req, res) => {
             'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
             [username, hash, role]
         );
+
+        if (role === 'RETAILER' && req.body.retailer_id) {
+            await connection.query('UPDATE retailers SET user_id = ? WHERE id = ?', [result.insertId, req.body.retailer_id]);
+        }
 
         // Auto-login after registration (optional, but convenient)
         const token = jwt.sign(
@@ -231,6 +235,81 @@ router.get('/orders', verifyToken, async (req, res) => {
         res.json(rows);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching orders' });
+    }
+});
+
+// SPRINT 3: Order Adjustments & Settlement
+router.post('/orders/:id/adjust', verifyToken, async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const { items } = req.body; // Array of { id: order_item_id, quantity }
+        const orderId = req.params.id;
+
+        const [order] = await connection.query('SELECT locked FROM orders WHERE id = ?', [orderId]);
+        if (order.length === 0 || order[0].locked) {
+            throw new Error('Order is locked or does not exist');
+        }
+
+        for (const item of items) {
+            await connection.query(
+                'UPDATE order_items SET quantity = ? WHERE id = ? AND order_id = ?',
+                [item.quantity, item.id, orderId]
+            );
+        }
+        await connection.commit();
+        res.json({ message: 'Order adjusted' });
+    } catch (err) {
+        await connection.rollback();
+        res.status(400).json({ message: err.message });
+    } finally {
+        connection.release();
+    }
+});
+
+router.post('/orders/:id/lock', verifyToken, async (req, res) => {
+    try {
+        const { total_amount } = req.body;
+        await db.query('UPDATE orders SET locked = TRUE, total_amount = ? WHERE id = ?', [total_amount, req.params.id]);
+        res.json({ message: 'Order locked' });
+    } catch (err) {
+        res.status(500).json({ message: 'Error locking order' });
+    }
+});
+
+router.post('/orders/:id/settle', verifyToken, async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        const orderId = req.params.id;
+        const { method, amount, cheque_number, bank_name, cheque_date, distributor_signature, retailer_signature, delivery_id } = req.body;
+
+        await connection.query(
+            `INSERT INTO payments (order_id, method, amount, cheque_number, bank_name, cheque_date, distributor_signature, retailer_signature)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [orderId, method, amount, cheque_number, bank_name, cheque_date, distributor_signature, retailer_signature]
+        );
+
+        let payment_status = method === 'PAY_LATER' ? 'UNPAID' : 'PAID';
+        
+        await connection.query(
+            "UPDATE orders SET payment_status = ?, status = 'DELIVERED' WHERE id = ?",
+            [payment_status, orderId]
+        );
+
+        await connection.query(
+            "UPDATE deliveries SET status = 'DELIVERED', delivery_time = NOW() WHERE id = ?",
+            [delivery_id]
+        );
+
+        await connection.commit();
+        res.json({ message: 'Settlement complete' });
+    } catch (err) {
+        await connection.rollback();
+        console.error(err);
+        res.status(500).json({ message: 'Error during settlement' });
+    } finally {
+        connection.release();
     }
 });
 
@@ -482,6 +561,107 @@ router.get('/route', verifyToken, async (req, res) => {
     } catch (err) {
         console.error(err);
          res.status(500).json({ message: 'Error calculating route' });
+    }
+});
+
+// SPRINT 3: GPS Arrival
+router.post('/deliveries/arrive', verifyToken, async (req, res) => {
+    try {
+        const { lat, lng } = req.body;
+        const [nearby] = await db.query(`
+            SELECT d.id as delivery_id, r.id as retailer_id, r.name, r.address, r.lat, r.lng, o.id as order_id
+            FROM deliveries d
+            JOIN orders o ON d.order_id = o.id
+            JOIN retailers r ON o.retailer_id = r.id
+            WHERE d.distributor_id = ? AND d.status = 'ASSIGNED'
+        `, [req.user.id]);
+        
+        const R = 6371; // km
+        const nearbyRetailers = nearby.filter(ret => {
+            const dLat = (ret.lat - lat) * Math.PI / 180;
+            const dLon = (ret.lng - lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat * Math.PI / 180) * Math.cos(ret.lat * Math.PI / 180) * 
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            return distance < 500; // within 500km radius for MVP testing, realistically ~1-5km
+        });
+
+        res.json({ nearby: nearbyRetailers });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error fetching nearby retailers' });
+    }
+});
+
+router.post('/deliveries/:id/start-session', verifyToken, async (req, res) => {
+    try {
+        const { lat, lng } = req.body;
+        await db.query(
+            "UPDATE deliveries SET arrived_at = NOW(), arrival_lat = ?, arrival_lng = ? WHERE id = ?",
+            [lat, lng, req.params.id]
+        );
+        res.json({ message: 'Session started' });
+    } catch (err) {
+        res.status(500).json({ message: 'Error starting session' });
+    }
+});
+
+// SPRINT 3: Retailer Dashboard
+router.get('/retailer/dashboard', verifyToken, async (req, res) => {
+    try {
+        const [retailer] = await db.query('SELECT id FROM retailers WHERE user_id = ?', [req.user.id]);
+        if (retailer.length === 0) return res.status(404).json({ message: 'Retailer profile not found' });
+        
+        const retailerId = retailer[0].id;
+        
+        const [deliveries] = await db.query(`
+            SELECT d.id as delivery_id, d.status as delivery_status,
+                   o.id as order_id, o.payment_status, o.total_amount, o.locked, d.delivery_time, d.arrived_at
+            FROM deliveries d
+            JOIN orders o ON d.order_id = o.id
+            WHERE o.retailer_id = ?
+            ORDER BY d.created_at DESC
+        `, [retailerId]);
+
+        for (let del of deliveries) {
+            const [items] = await db.query(`
+                SELECT oi.*, p.name as product_name, p.unit
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                WHERE oi.order_id = ?
+            `, [del.order_id]);
+            del.items = items;
+
+            const [payments] = await db.query('SELECT * FROM payments WHERE order_id = ?', [del.order_id]);
+            del.payment = payments.length > 0 ? payments[0] : null;
+        }
+
+        res.json({ deliveries, retailer_id: retailerId });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error fetching retailer dashboard' });
+    }
+});
+
+// SPRINT 3: Area Manager expanded retailers view
+router.get('/area-manager/retailers', verifyToken, async (req, res) => {
+    try {
+        const [retailers] = await db.query(`
+            SELECT r.*, 
+                COUNT(DISTINCT o.id) as total_orders,
+                SUM(CASE WHEN o.payment_status = 'UNPAID' AND o.total_amount IS NOT NULL THEN o.total_amount ELSE 0 END) as outstanding_balance,
+                SUM(CASE WHEN p.method = 'PAY_LATER' THEN 1 ELSE 0 END) as pending_payments_count
+            FROM retailers r
+            LEFT JOIN orders o ON r.id = o.retailer_id
+            LEFT JOIN payments p ON o.id = p.order_id
+            GROUP BY r.id
+        `);
+        res.json(retailers);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error fetching area manager retailers' });
     }
 });
 

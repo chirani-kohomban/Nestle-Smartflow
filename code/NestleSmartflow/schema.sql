@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('NESTLE_MANAGER', 'AREA_MANAGER', 'ADMIN', 'WAREHOUSE', 'DISTRIBUTOR') NOT NULL,
+    role ENUM('NESTLE_MANAGER', 'AREA_MANAGER', 'ADMIN', 'WAREHOUSE', 'DISTRIBUTOR', 'RETAILER') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -37,7 +37,9 @@ CREATE TABLE IF NOT EXISTS retailers (
     address VARCHAR(255) NOT NULL,
     lat DECIMAL(10,8) NOT NULL,
     lng DECIMAL(11,8) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    user_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- 5. Orders Table
@@ -47,6 +49,8 @@ CREATE TABLE IF NOT EXISTS orders (
     retailer_id INT NOT NULL,
     status ENUM('PENDING', 'ALLOCATED', 'DISPATCHED', 'DELIVERED') NOT NULL DEFAULT 'PENDING',
     payment_status ENUM('UNPAID', 'PAID') NOT NULL DEFAULT 'UNPAID',
+    total_amount DECIMAL(10,2) DEFAULT 0.00,
+    locked BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (retailer_id) REFERENCES retailers(id) ON DELETE CASCADE
@@ -70,7 +74,25 @@ CREATE TABLE IF NOT EXISTS deliveries (
     status ENUM('PENDING', 'ASSIGNED', 'DELIVERED') NOT NULL DEFAULT 'PENDING',
     delivery_order INT, -- For route optimization sequence
     delivery_time TIMESTAMP NULL,
+    arrived_at TIMESTAMP NULL,
+    arrival_lat DECIMAL(10,8) NULL,
+    arrival_lng DECIMAL(11,8) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     FOREIGN KEY (distributor_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- 8. Payments Table
+CREATE TABLE IF NOT EXISTS payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    method ENUM('CASH', 'CHEQUE', 'PAY_LATER') NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    cheque_number VARCHAR(100),
+    bank_name VARCHAR(100),
+    cheque_date DATE,
+    distributor_signature LONGTEXT,
+    retailer_signature LONGTEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
