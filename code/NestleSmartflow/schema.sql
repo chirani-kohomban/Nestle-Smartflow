@@ -96,3 +96,13 @@ CREATE TABLE IF NOT EXISTS payments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
+
+-- 9. Distributor Profiles Table
+CREATE TABLE IF NOT EXISTS distributor_profiles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    status ENUM('OFFLINE', 'AVAILABLE', 'ON_ROUTE') NOT NULL DEFAULT 'OFFLINE',
+    current_lat DECIMAL(10,8),
+    current_lng DECIMAL(11,8),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

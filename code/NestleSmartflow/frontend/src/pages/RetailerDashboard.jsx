@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Package, LogOut, Clock, FileText, CheckCircle, CreditCard, Download } from 'lucide-react';
+import { Package, LogOut, Clock, FileText, CheckCircle, CreditCard, Download, Sparkles, PackagePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
@@ -9,8 +9,14 @@ export default function RetailerDashboard() {
   const [deliveries, setDeliveries] = useState([]);
   const [retailerId, setRetailerId] = useState(null);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
-  const navigate = useNavigate();
+  
+  // Order Creation State
+  const [products, setProducts] = useState([]);
+  const [orderItems, setOrderItems] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const navigate = useNavigate();
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user'));
 
@@ -25,11 +31,70 @@ export default function RetailerDashboard() {
   const fetchDashboard = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get(`${API_URL}/retailer/dashboard`, { headers });
-      setDeliveries(res.data.deliveries);
-      setRetailerId(res.data.retailer_id);
+      const [dashRes, prodRes] = await Promise.all([
+        axios.get(`${API_URL}/retailer/dashboard`, { headers }),
+        axios.get(`${API_URL}/products`, { headers })
+      ]);
+      
+      setDeliveries(dashRes.data.deliveries);
+      const rId = dashRes.data.retailer_id;
+      setRetailerId(rId);
+      setProducts(prodRes.data);
+
+      if (rId) {
+        loadRecommendations(rId, headers);
+      }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const loadRecommendations = async (rId, headers) => {
+    try {
+      const { data } = await axios.get(`${API_URL}/orders/recommendation/${rId}`, { headers });
+      setRecommendations(data.recommendations || []);
+      if (data.recommendations && data.recommendations.length > 0) {
+        setOrderItems(data.recommendations.map(r => ({ product_id: r.product_id, quantity: r.recommended_quantity })));
+      } else {
+        setOrderItems([{ product_id: '', quantity: 1 }]);
+      }
+    } catch (err) {
+      console.error("Error loading recommendations", err);
+      setOrderItems([{ product_id: '', quantity: 1 }]);
+    }
+  };
+
+  const addOrderItem = () => setOrderItems([...orderItems, { product_id: '', quantity: 1 }]);
+  
+  const updateOrderItem = (index, field, value) => {
+    const newItems = [...orderItems];
+    newItems[index][field] = value;
+    setOrderItems(newItems);
+  };
+
+  const submitOrder = async (e) => {
+    e.preventDefault();
+    if (!retailerId) return alert('Retailer ID not found. Cannot create order.');
+    const validItems = orderItems.filter(i => i.product_id && i.quantity > 0);
+    if (validItems.length === 0) return alert('Please add at least one valid item.');
+    
+    setIsSubmitting(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post(`${API_URL}/orders`, {
+        retailer_id: retailerId,
+        items: validItems
+      }, { headers });
+      
+      alert('Order requested successfully! Notification sent to Warehouse.');
+      
+      // Refresh dashboard
+      fetchDashboard();
+    } catch (err) {
+      alert('Error creating order');
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -67,10 +132,72 @@ export default function RetailerDashboard() {
         </div>
       </div>
 
-      <div className="w-full max-w-5xl grid grid-cols-1 gap-8 relative z-10">
+      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 relative z-10">
         
-        {/* Deliveries & Receipts */}
-        <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8">
+        {/* Order Request Panel */}
+        <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8 flex flex-col">
+          <h2 className="text-xl items-center font-bold mb-6 flex text-white tracking-tight">
+            <div className="bg-blue-500/20 p-2 rounded-xl mr-3 shadow-inner border border-blue-500/30">
+              <PackagePlus className="text-blue-400 w-5 h-5" />
+            </div>
+            Request Inventory
+          </h2>
+          <form onSubmit={submitOrder} className="space-y-5 flex-1 flex flex-col">
+            {recommendations.length > 0 && (
+              <div className="bg-emerald-950/40 p-4 rounded-xl border border-emerald-500/30">
+                <div className="flex items-center text-emerald-400 font-bold mb-1 text-sm">
+                  <Sparkles className="w-4 h-4 mr-1.5" /> System Suggested Order
+                </div>
+                <p className="text-xs text-emerald-300/[0.7] leading-relaxed">
+                  Based on your historical stock trends, optimal quantities have been pre-filled. You can adjust them before dispatching.
+                </p>
+              </div>
+            )}
+
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-slate-400 mb-2 ml-1">Inventory Items</label>
+              <div className="space-y-3">
+                {orderItems.map((item, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <select 
+                      className="flex-1 p-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:ring-2 focus:ring-indigo-500/50 outline-none shadow-inner"
+                      value={item.product_id}
+                      onChange={(e) => updateOrderItem(idx, 'product_id', e.target.value)}
+                      required
+                    >
+                      <option value="">Select Product...</option>
+                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <input 
+                      type="number" min="1"
+                      className="w-24 p-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:ring-2 focus:ring-indigo-500/50 outline-none shadow-inner text-center" 
+                      value={item.quantity}
+                      onChange={(e) => updateOrderItem(idx, 'quantity', e.target.value)}
+                      required
+                    />
+                    <button type="button" onClick={() => {
+                      const idxs = [...orderItems];
+                      idxs.splice(idx, 1);
+                      setOrderItems(idxs);
+                    }} className="text-red-400/80 hover:text-red-400 hover:bg-red-500/10 px-3 rounded-xl transition-all font-bold">✕</button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={addOrderItem} className="mt-4 text-indigo-400 hover:text-indigo-300 text-sm font-semibold hover:underline flex items-center px-1 transition-colors">
+                <span className="text-lg mr-1 leading-none">+</span> Add Row
+              </button>
+            </div>
+
+            <div className="pt-4 mt-auto">
+              <button disabled={isSubmitting} type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-500/25 active:scale-[0.98] transition-all disabled:opacity-50">
+                {isSubmitting ? 'Dispatching...' : 'Dispatch Request to Warehouse'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Deliveries & Receipts Panel */}
+        <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8 flex flex-col max-h-[85vh]">
           <h2 className="text-xl font-bold mb-6 flex items-center text-white tracking-tight">
             <div className="bg-slate-800 p-2 rounded-xl mr-3 shadow-inner border border-slate-700">
               <Clock className="text-indigo-400 w-5 h-5" />
@@ -78,50 +205,55 @@ export default function RetailerDashboard() {
             Delivery & Payment History
           </h2>
 
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto pr-2">
             {deliveries.map(del => (
-              <div key={del.delivery_id} className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-slate-700 transition-colors">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
+              <div key={del.delivery_id} className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex flex-col gap-3 hover:border-slate-700 transition-colors">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
                     <span className="text-lg font-bold text-slate-200">Order #{del.order_id}</span>
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider ${
                       del.delivery_status === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'
                     }`}>
                       {del.delivery_status}
                     </span>
-                    {del.payment_status === 'PAID' && (
-                      <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-slate-200">
+                      LKR {parseFloat(del.total_amount || 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-400">
+                  {del.delivery_time ? new Date(del.delivery_time).toLocaleString() : 'In transit'}
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {del.items?.map((item, idx) => (
+                    <span key={idx} className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">
+                      {item.quantity}x {item.product_name}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between mt-2 pt-3 border-t border-slate-800/50">
+                  <div className="flex items-center gap-2">
+                    {del.payment_status === 'PAID' ? (
+                      <span className="text-emerald-400 text-xs font-bold flex items-center gap-1">
                         <CheckCircle size={12} /> PAID
                       </span>
-                    )}
-                    {del.payment_status === 'UNPAID' && (
-                      <span className="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
+                    ) : (
+                      <span className="text-amber-400 text-xs font-bold flex items-center gap-1">
                         <Clock size={12} /> PENDING PAY
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-slate-400 mb-2">
-                    Delivered on: {del.delivery_time ? new Date(del.delivery_time).toLocaleString() : 'Not delivered yet'}
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {del.items?.map((item, idx) => (
-                      <span key={idx} className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">
-                        {item.quantity}x {item.product_name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end gap-2 w-full md:w-auto">
-                  <div className="text-xl font-bold text-slate-200">
-                    LKR {parseFloat(del.total_amount || 0).toFixed(2)}
-                  </div>
                   {del.delivery_status === 'DELIVERED' && (
                     <button 
                       onClick={() => viewReceipt(del)}
-                      className="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-600/30 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors w-full md:w-auto justify-center"
+                      className="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-600/30 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
                     >
-                      <FileText size={16} /> View E-Receipt
+                      <FileText size={12} /> E-Receipt
                     </button>
                   )}
                 </div>
@@ -132,7 +264,6 @@ export default function RetailerDashboard() {
             )}
           </div>
         </div>
-
       </div>
 
       {/* Receipt Modal */}
@@ -161,7 +292,6 @@ export default function RetailerDashboard() {
                   {selectedReceipt.items?.map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
                       <span>{item.quantity}x {item.product_name}</span>
-                      {/* Assuming price isn't stored per item in this MVP, just showing total */}
                     </div>
                   ))}
                 </div>

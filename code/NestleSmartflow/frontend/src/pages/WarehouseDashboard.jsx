@@ -9,7 +9,6 @@ export default function WarehouseDashboard() {
   const [orders, setOrders] = useState([]);
   const [distributors, setDistributors] = useState([]);
   const [inventory, setInventory] = useState([]);
-  const [selectedDistributor, setSelectedDistributor] = useState({});
   const [adjustmentModal, setAdjustmentModal] = useState({ show: false, product: null, change: '' });
   const navigate = useNavigate();
 
@@ -29,7 +28,7 @@ export default function WarehouseDashboard() {
       const headers = { Authorization: `Bearer ${token}` };
       const [ordRes, distRes, prodRes] = await Promise.all([
         axios.get(`${API_URL}/orders`, { headers }),
-        axios.get(`${API_URL}/distributors`, { headers }),
+        axios.get(`${API_URL}/distributors/status`, { headers }),
         axios.get(`${API_URL}/products`, { headers }) 
       ]);
       setOrders(ordRes.data.filter(o => o.status === 'PENDING' || o.status === 'ALLOCATED'));
@@ -41,18 +40,15 @@ export default function WarehouseDashboard() {
   };
 
   const handleDispatch = async (orderId) => {
-    const distId = selectedDistributor[orderId];
-    if (!distId) return alert('Please select a distributor to assign.');
-
     try {
-      await axios.post(`${API_URL}/dispatch`, {
-        order_id: orderId,
-        distributor_id: distId
+      await axios.post(`${API_URL}/auto-dispatch`, {
+        order_id: orderId
       }, { headers: { Authorization: `Bearer ${token}` } });
       
+      alert('Order successfully auto-allocated to the nearest available distributor!');
       fetchData(); // Refresh UI
     } catch (err) {
-      alert(err.response?.data?.message || 'Error dispatching order. Possibly insufficient stock.');
+      alert(err.response?.data?.message || 'Error dispatching order. No couriers available or insufficient stock.');
     }
   };
 
@@ -93,9 +89,14 @@ export default function WarehouseDashboard() {
               </div>
               Dispatch Queue
             </h2>
-            <span className="bg-slate-800 text-amber-400 text-xs font-black uppercase px-3 py-1.5 rounded-lg border border-slate-700 shadow-inner">
-              {orders.length} Pending
-            </span>
+            <div className="flex gap-3">
+              <span className="bg-emerald-500/10 text-emerald-400 text-xs font-black uppercase px-3 py-1.5 rounded-lg border border-emerald-500/20 shadow-inner">
+                {distributors.filter(d => d.status === 'AVAILABLE').length} Available Couriers
+              </span>
+              <span className="bg-slate-800 text-amber-400 text-xs font-black uppercase px-3 py-1.5 rounded-lg border border-slate-700 shadow-inner">
+                {orders.length} Pending
+              </span>
+            </div>
           </div>
           
           <div className="space-y-4">
@@ -130,20 +131,12 @@ export default function WarehouseDashboard() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-slate-700/50">
-                  <select 
-                    className="p-3 bg-slate-900 border border-slate-700 rounded-xl text-sm font-medium text-slate-200 outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 shadow-inner flex-1"
-                    value={selectedDistributor[o.id] || ''}
-                    onChange={(e) => setSelectedDistributor({...selectedDistributor, [o.id]: e.target.value})}
-                  >
-                    <option value="" className="text-slate-500">Assign Courier Route...</option>
-                    {distributors.map(d => <option key={d.id} value={d.id}>{d.username} (Route Driver)</option>)}
-                  </select>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-slate-700/50">
                   <button 
                     onClick={() => handleDispatch(o.id)}
-                    className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-amber-900/40 transition-all active:scale-[0.98] sm:w-auto w-full"
+                    className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-emerald-900/40 transition-all active:scale-[0.98] sm:w-auto w-full flex items-center justify-center gap-2"
                   >
-                    Allocate & Dispatch
+                    <Truck size={18} /> Auto-Allocate & Dispatch
                   </button>
                 </div>
               </div>

@@ -282,7 +282,12 @@ router.post('/orders/:id/settle', verifyToken, async (req, res) => {
     try {
         await connection.beginTransaction();
         const orderId = req.params.id;
-        const { method, amount, cheque_number, bank_name, cheque_date, distributor_signature, retailer_signature, delivery_id } = req.body;
+        const { method, amount, distributor_signature, retailer_signature, delivery_id } = req.body;
+        
+        let { cheque_number, bank_name, cheque_date } = req.body;
+        cheque_number = (cheque_number && cheque_number.trim() !== '') ? cheque_number : null;
+        bank_name = (bank_name && bank_name.trim() !== '') ? bank_name : null;
+        cheque_date = (cheque_date && cheque_date.trim() !== '') ? cheque_date : null;
 
         await connection.query(
             `INSERT INTO payments (order_id, method, amount, cheque_number, bank_name, cheque_date, distributor_signature, retailer_signature)
@@ -301,6 +306,19 @@ router.post('/orders/:id/settle', verifyToken, async (req, res) => {
             "UPDATE deliveries SET status = 'DELIVERED', delivery_time = NOW() WHERE id = ?",
             [delivery_id]
         );
+
+        // Auto-release distributor if no more assigned deliveries
+        const [del] = await connection.query('SELECT distributor_id FROM deliveries WHERE id = ?', [delivery_id]);
+        if (del.length > 0) {
+            const distId = del[0].distributor_id;
+            const [active] = await connection.query(
+                "SELECT id FROM deliveries WHERE distributor_id = ? AND status = 'ASSIGNED'", 
+                [distId]
+            );
+            if (active.length === 0) {
+                await connection.query("UPDATE distributor_profiles SET status = 'AVAILABLE' WHERE user_id = ?", [distId]);
+            }
+        }
 
         await connection.commit();
         res.json({ message: 'Settlement complete' });
@@ -383,13 +401,12 @@ router.get('/orders/recommendation/:retailerId', verifyToken, async (req, res) =
 });
 
 // --- DISPATCH (WAREHOUSE) ---
-// POST /dispatch -> Allocate stock and create delivery
-router.post('/dispatch', verifyToken, async (req, res) => {
-    // Expected: { order_id: 1, distributor_id: 3 }
+// POST /auto-dispatch -> Allocate stock and auto-assign closest distributor
+router.post('/auto-dispatch', verifyToken, async (req, res) => {
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
-        const { order_id, distributor_id } = req.body;
+        const { order_id } = req.body;
 
         // 1. Get order items
         const [items] = await connection.query('SELECT product_id, quantity FROM order_items WHERE order_id = ?', [order_id]);
@@ -403,17 +420,55 @@ router.post('/dispatch', verifyToken, async (req, res) => {
             await connection.query('UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?', [item.quantity, item.product_id]);
         }
 
-        // 3. Update order status to DISPATCHED
+        // 3. Find closest AVAILABLE distributor
+        const [order] = await connection.query(`
+            SELECT r.lat, r.lng 
+            FROM orders o 
+            JOIN retailers r ON o.retailer_id = r.id 
+            WHERE o.id = ?`, [order_id]);
+            
+        if (order.length === 0) throw new Error('Order or retailer not found');
+        const retLat = order[0].lat;
+        const retLng = order[0].lng;
+
+        const [distributors] = await connection.query("SELECT user_id, current_lat, current_lng FROM distributor_profiles WHERE status = 'AVAILABLE'");
+        
+        if (distributors.length === 0) {
+            throw new Error('No distributors are currently available. Please wait for a courier to come online.');
+        }
+
+        let bestDistributorId = null;
+        let minDistance = Infinity;
+
+        for (const d of distributors) {
+            if (d.current_lat && d.current_lng) {
+                const dist = getDistance(retLat, retLng, d.current_lat, d.current_lng);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    bestDistributorId = d.user_id;
+                }
+            } else {
+                // If they don't have location yet, assign them as fallback
+                if (!bestDistributorId) bestDistributorId = d.user_id;
+            }
+        }
+
+        if (!bestDistributorId) throw new Error('Could not determine a valid distributor.');
+
+        // 4. Update order status to DISPATCHED
         await connection.query("UPDATE orders SET status = 'DISPATCHED' WHERE id = ?", [order_id]);
 
-        // 4. Create delivery
+        // 5. Create delivery
         await connection.query(
             "INSERT INTO deliveries (order_id, distributor_id, status) VALUES (?, ?, 'ASSIGNED')",
-            [order_id, distributor_id]
+            [order_id, bestDistributorId]
         );
 
+        // 6. Update distributor status to ON_ROUTE
+        await connection.query("UPDATE distributor_profiles SET status = 'ON_ROUTE' WHERE user_id = ?", [bestDistributorId]);
+
         await connection.commit();
-        res.json({ message: 'Order dispatched successfully' });
+        res.json({ message: 'Order auto-dispatched successfully', assignedDistributor: bestDistributorId });
     } catch (err) {
         await connection.rollback();
         console.error(err);
@@ -423,12 +478,39 @@ router.post('/dispatch', verifyToken, async (req, res) => {
     }
 });
 
-router.get('/distributors', verifyToken, async (req, res) => {
+router.get('/distributors/status', verifyToken, async (req, res) => {
     try {
-         const [rows] = await db.query("SELECT id, username FROM users WHERE role = 'DISTRIBUTOR'");
+         const [rows] = await db.query(`
+            SELECT u.id, u.username, dp.status 
+            FROM users u 
+            JOIN distributor_profiles dp ON u.id = dp.user_id 
+            WHERE u.role = 'DISTRIBUTOR'
+         `);
          res.json(rows);
     } catch (err) {
          res.status(500).json({ message: 'Error fetching distributors' });
+    }
+});
+
+router.post('/distributor/status', verifyToken, async (req, res) => {
+    try {
+        const { status, lat, lng } = req.body;
+        // Make sure it exists first
+        const [existing] = await db.query("SELECT id FROM distributor_profiles WHERE user_id = ?", [req.user.id]);
+        if (existing.length === 0) {
+            await db.query(
+                "INSERT INTO distributor_profiles (user_id, status, current_lat, current_lng) VALUES (?, ?, ?, ?)",
+                [req.user.id, status, lat, lng]
+            );
+        } else {
+            await db.query(
+                "UPDATE distributor_profiles SET status = ?, current_lat = ?, current_lng = ? WHERE user_id = ?",
+                [status, lat, lng, req.user.id]
+            );
+        }
+        res.json({ message: 'Status updated successfully' });
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating status' });
     }
 });
 

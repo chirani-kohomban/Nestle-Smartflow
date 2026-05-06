@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Route, MapPin, CheckCircle, LogOut, Navigation2, Lock, CreditCard, PenTool } from 'lucide-react';
+import { Route, MapPin, CheckCircle, LogOut, Navigation2, Lock, CreditCard, PenTool, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SignaturePad from '../components/SignaturePad';
 
@@ -9,6 +9,7 @@ const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
 export default function DistributorDashboard() {
   const [route, setRoute] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState('OFFLINE'); // OFFLINE, AVAILABLE, ON_ROUTE
   const navigate = useNavigate();
 
   // Delivery Session State
@@ -37,10 +38,33 @@ export default function DistributorDashboard() {
       const headers = { Authorization: `Bearer ${token}` };
       const { data } = await axios.get(`${API_URL}/route`, { headers });
       setRoute(data.route || []);
+      
+      // Also fetch their current status so it persists across reloads
+      const statusRes = await axios.get(`${API_URL}/distributors/status`, { headers });
+      const myStatus = statusRes.data.find(d => d.id === user.id)?.status || 'OFFLINE';
+      setStatus(myStatus);
+
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleStatus = async () => {
+    const newStatus = status === 'OFFLINE' ? 'AVAILABLE' : 'OFFLINE';
+    
+    // Fallback coordinates for demo (Colombo base)
+    let lat = 6.9271;
+    let lng = 79.8612;
+
+    try {
+      // In a real app, we would use navigator.geolocation
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post(`${API_URL}/distributor/status`, { status: newStatus, lat, lng }, { headers });
+      setStatus(newStatus);
+    } catch (err) {
+      alert('Error updating status');
     }
   };
 
@@ -160,12 +184,27 @@ export default function DistributorDashboard() {
             <p className="text-slate-400 mt-2 ml-14 text-sm font-medium">Nearest-Neighbor calculation engine active.</p>
           </div>
           
-          <button 
-            onClick={fetchRoute}
-            className="flex justify-center items-center gap-2 bg-slate-800 px-5 py-2.5 text-slate-300 rounded-xl hover:bg-slate-700 hover:text-white font-bold tracking-wide transition border border-slate-700 shadow-inner sm:w-auto w-full"
-          >
-            <Navigation2 className="w-4 h-4" /> Sync GPS
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <button 
+              onClick={toggleStatus}
+              disabled={status === 'ON_ROUTE'}
+              className={`flex justify-center items-center gap-2 px-5 py-2.5 rounded-xl font-bold tracking-wide transition border shadow-inner sm:w-auto w-full disabled:opacity-50 ${
+                status === 'AVAILABLE' 
+                  ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-600/30' 
+                  : status === 'ON_ROUTE'
+                  ? 'bg-blue-600/20 text-blue-400 border-blue-500/30 cursor-not-allowed'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              {status === 'AVAILABLE' ? 'You are ONLINE' : status === 'ON_ROUTE' ? 'En Route...' : 'Go ONLINE'}
+            </button>
+            <button 
+              onClick={fetchRoute}
+              className="flex justify-center items-center gap-2 bg-slate-800 px-5 py-2.5 text-slate-300 rounded-xl hover:bg-slate-700 hover:text-white font-bold tracking-wide transition border border-slate-700 shadow-inner sm:w-auto w-full"
+            >
+              <Navigation2 className="w-4 h-4" /> Sync GPS
+            </button>
+          </div>
         </div>
 
         {loading ? (
