@@ -65,17 +65,26 @@ async function seedData() {
         }
 
         // --- Retailers ---
-        console.log("Seeding Retailers...");
+        console.log("Seeding Retailers (with login accounts)...");
         // Some dummy coordinates in a small area
         const retailers = [
-            ['Shop A', '123 Main St', 6.9319, 79.8478],
-            ['Supermart B', '45 Park Ave', 6.9350, 79.8510],
-            ['Daily Grocery C', '88 High Rd', 6.9380, 79.8450],
-            ['Convenience Store D', '22 East Wing', 6.9400, 79.8550]
+            { username: 'retailer_shop_a', name: 'Shop A', address: '123 Main St', lat: 6.9319, lng: 79.8478 },
+            { username: 'retailer_supermart_b', name: 'Supermart B', address: '45 Park Ave', lat: 6.9350, lng: 79.8510 },
+            { username: 'retailer_daily_grocery_c', name: 'Daily Grocery C', address: '88 High Rd', lat: 6.9380, lng: 79.8450 },
+            { username: 'retailer_store_d', name: 'Convenience Store D', address: '22 East Wing', lat: 6.9400, lng: 79.8550 }
         ];
 
-        for (const [name, address, lat, lng] of retailers) {
-            await db.query('INSERT INTO retailers (name, address, lat, lng) VALUES (?, ?, ?, ?)', [name, address, lat, lng]);
+        for (const r of retailers) {
+            const retailerHash = await bcrypt.hash('password123', 10);
+            const [userResult] = await db.query(
+                "INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'RETAILER')",
+                [r.username, retailerHash]
+            );
+
+            await db.query(
+                'INSERT INTO retailers (name, address, lat, lng, user_id) VALUES (?, ?, ?, ?, ?)',
+                [r.name, r.address, r.lat, r.lng, userResult.insertId]
+            );
         }
 
         console.log("✅ Dummy data injected successfully!");

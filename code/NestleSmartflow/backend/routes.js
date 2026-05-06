@@ -57,8 +57,24 @@ router.post('/register', async (req, res) => {
             [username, hash, role]
         );
 
-        if (role === 'RETAILER' && req.body.retailer_id) {
-            await connection.query('UPDATE retailers SET user_id = ? WHERE id = ?', [result.insertId, req.body.retailer_id]);
+        if (role === 'RETAILER') {
+            if (req.body.retailer_id) {
+                const [linkResult] = await connection.query(
+                    'UPDATE retailers SET user_id = ? WHERE id = ?',
+                    [result.insertId, req.body.retailer_id]
+                );
+
+                if (linkResult.affectedRows === 0) {
+                    return res.status(400).json({ message: 'Invalid retailer_id provided' });
+                }
+            } else {
+                // Auto-create a basic retailer profile when no existing retailer is selected.
+                // This prevents "retailer profile not found" after successful retailer signup.
+                await connection.query(
+                    'INSERT INTO retailers (name, address, lat, lng, user_id) VALUES (?, ?, ?, ?, ?)',
+                    [username, 'Pending address', 0, 0, result.insertId]
+                );
+            }
         }
 
         // Auto-login after registration (optional, but convenient)
@@ -420,36 +436,68 @@ router.post('/auto-dispatch', verifyToken, async (req, res) => {
             await connection.query('UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?', [item.quantity, item.product_id]);
         }
 
-        // 3. Find closest AVAILABLE distributor
+        // 3. Find AVAILABLE distributor
+        // Priority:
+        //   1) Area-based username match (e.g. retailer "shop_galle" -> distributor "distributor_galle")
+        //   2) Fallback to nearest distributor by GPS
         const [order] = await connection.query(`
-            SELECT r.lat, r.lng 
+            SELECT r.lat, r.lng, ru.username AS retailer_username
             FROM orders o 
             JOIN retailers r ON o.retailer_id = r.id 
+            LEFT JOIN users ru ON ru.id = r.user_id
             WHERE o.id = ?`, [order_id]);
             
         if (order.length === 0) throw new Error('Order or retailer not found');
         const retLat = order[0].lat;
         const retLng = order[0].lng;
+        const retailerUsername = (order[0].retailer_username || '').toLowerCase();
 
-        const [distributors] = await connection.query("SELECT user_id, current_lat, current_lng FROM distributor_profiles WHERE status = 'AVAILABLE'");
+        const [distributors] = await connection.query(`
+            SELECT dp.user_id, dp.current_lat, dp.current_lng, u.username
+            FROM distributor_profiles dp
+            JOIN users u ON u.id = dp.user_id
+            WHERE dp.status = 'AVAILABLE' AND u.role = 'DISTRIBUTOR'
+        `);
         
         if (distributors.length === 0) {
             throw new Error('No distributors are currently available. Please wait for a courier to come online.');
         }
 
         let bestDistributorId = null;
+        let assignmentMode = 'NEAREST';
         let minDistance = Infinity;
 
-        for (const d of distributors) {
-            if (d.current_lat && d.current_lng) {
-                const dist = getDistance(retLat, retLng, d.current_lat, d.current_lng);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    bestDistributorId = d.user_id;
+        // Try area-based assignment first using suffix after first underscore.
+        // Examples:
+        //   retailer: shop_galle           -> area token: galle
+        //   retailer: store_colombo_south  -> area token: colombo_south
+        const retailerParts = retailerUsername.split('_').filter(Boolean);
+        const areaToken = retailerParts.length > 1 ? retailerParts.slice(1).join('_') : null;
+
+        if (areaToken) {
+            const matchedDistributor = distributors.find(d => {
+                const dUsername = (d.username || '').toLowerCase();
+                return dUsername.endsWith(`_${areaToken}`);
+            });
+
+            if (matchedDistributor) {
+                bestDistributorId = matchedDistributor.user_id;
+                assignmentMode = 'AREA_MATCH';
+            }
+        }
+
+        if (!bestDistributorId) {
+            for (const d of distributors) {
+                if (d.current_lat && d.current_lng) {
+                    const dist = getDistance(retLat, retLng, d.current_lat, d.current_lng);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        bestDistributorId = d.user_id;
+                    }
+                } else {
+                    // If they don't have location yet, assign them as fallback
+                    if (!bestDistributorId) bestDistributorId = d.user_id;
                 }
-            } else {
-                // If they don't have location yet, assign them as fallback
-                if (!bestDistributorId) bestDistributorId = d.user_id;
             }
         }
 
@@ -468,7 +516,11 @@ router.post('/auto-dispatch', verifyToken, async (req, res) => {
         await connection.query("UPDATE distributor_profiles SET status = 'ON_ROUTE' WHERE user_id = ?", [bestDistributorId]);
 
         await connection.commit();
-        res.json({ message: 'Order auto-dispatched successfully', assignedDistributor: bestDistributorId });
+        res.json({
+            message: 'Order auto-dispatched successfully',
+            assignedDistributor: bestDistributorId,
+            assignmentMode
+        });
     } catch (err) {
         await connection.rollback();
         console.error(err);
