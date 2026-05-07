@@ -169,7 +169,7 @@ export default function Login() {
         </div>
         
         {!isRegister && (
-            <div className="mt-6 text-[11px] text-slate-500 text-center font-medium p-4 bg-slate-950/30 rounded-xl border border-slate-800/80 leading-relaxed max-h-[160px] overflow-y-auto">
+            <div className="mt-6 text-[11px] text-slate-500 text-center font-medium p-4 bg-slate-950/30 rounded-xl border border-slate-800/80 leading-relaxed max-h-[220px] overflow-y-auto">
               <span className="text-slate-400 font-bold mb-1 block uppercase tracking-wider border-b border-slate-800 pb-1">Demo Directory</span>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-left mt-2 px-1">
                  <div><span className="text-blue-400">Exec:</span> admin</div>
@@ -181,6 +181,12 @@ export default function Login() {
                  <div className="truncate"><span className="text-amber-400">Kandy:</span> distributor_kandy</div>
                  <div className="truncate"><span className="text-amber-400">Galle:</span> distributor_galle</div>
                  <div className="col-span-2 truncate"><span className="text-amber-400">Col-South:</span> distributor_colombo_south</div>
+
+                 <div className="col-span-2 mt-1.5 pt-1.5 border-t border-slate-800 text-indigo-500/80 uppercase tracking-widest text-[9px]">Retailer Profiles:</div>
+                 <div className="truncate"><span className="text-indigo-400">Shop A:</span> shop_a</div>
+                 <div className="truncate"><span className="text-indigo-400">Kandy:</span> shop_kandy</div>
+                 <div className="truncate"><span className="text-indigo-400">Galle:</span> shop_galle</div>
+                 <div className="truncate"><span className="text-indigo-400">Store D:</span> convenience_store_d</div>
               </div>
               <div className="mt-2.5 pt-2 border-t border-slate-800">
                 Password: <span className="text-slate-300 font-bold tracking-widest bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800">password123</span>
