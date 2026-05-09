@@ -8,7 +8,10 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD || 'UOg4TWarIA2NAaXk',
     database: process.env.DB_NAME || 'test',
     port: process.env.DB_PORT || 4000,
-    ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true },
+    ssl: {
+        minVersion: 'TLSv1.2',
+        rejectUnauthorized: false
+    },
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
