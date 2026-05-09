@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
 const { verifyToken } = require('./middleware'); // Assuming verifyToken is standard
+const PersonalizationService = require('./services/personalizationService');
 
 // --- AUTHENTICATION ---
 // POST /login -> Authenticate user, return role
@@ -35,11 +36,11 @@ router.post('/register', async (req, res) => {
     const connection = await db.getConnection();
     try {
         const { username, password, role } = req.body;
-        
+
         if (!username || !password || !role) {
             return res.status(400).json({ message: 'All fields are required' });
         }
-        
+
         if (!['NESTLE_MANAGER', 'AREA_MANAGER', 'ADMIN', 'WAREHOUSE', 'DISTRIBUTOR', 'RETAILER'].includes(role)) {
             return res.status(400).json({ message: 'Invalid role' });
         }
@@ -51,7 +52,7 @@ router.post('/register', async (req, res) => {
         }
 
         const hash = await bcrypt.hash(password, 10);
-        
+
         const [result] = await connection.query(
             'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
             [username, hash, role]
@@ -84,10 +85,10 @@ router.post('/register', async (req, res) => {
             { expiresIn: '12h' }
         );
 
-        res.status(201).json({ 
+        res.status(201).json({
             message: 'Registered successfully',
-            token, 
-            user: { id: result.insertId, username, role } 
+            token,
+            user: { id: result.insertId, username, role }
         });
     } catch (err) {
         console.error(err);
@@ -141,14 +142,14 @@ router.post('/inventory/adjust', verifyToken, async (req, res) => {
     try {
         await connection.beginTransaction();
         const { product_id, quantity_change } = req.body;
-        
+
         // Ensure negative changes do not drop stock securely
         const [inv] = await connection.query('SELECT quantity FROM inventory WHERE product_id = ? FOR UPDATE', [product_id]);
-        if (inv.length === 0) return res.status(404).json({ message: 'Product not found in inventory.'});
-        
+        if (inv.length === 0) return res.status(404).json({ message: 'Product not found in inventory.' });
+
         const currentQty = parseInt(inv[0].quantity) || 0;
         const finalQty = currentQty + parseInt(quantity_change);
-        
+
         if (finalQty < 0) {
             throw new Error(`Cannot reduce stock below 0. Current stock is ${currentQty}.`);
         }
@@ -157,7 +158,7 @@ router.post('/inventory/adjust', verifyToken, async (req, res) => {
             'UPDATE inventory SET quantity = ?, last_updated_by = ? WHERE product_id = ?',
             [finalQty, req.user.id, product_id]
         );
-        
+
         await connection.commit();
         res.json({ message: 'Stock adjusted successfully', newQuantity: finalQty });
     } catch (err) {
@@ -175,18 +176,18 @@ router.post('/products', verifyToken, async (req, res) => {
     try {
         await connection.beginTransaction();
         const { name, sku, unit, initialQuantity } = req.body;
-        
+
         const [prodResult] = await connection.query(
             'INSERT INTO products (name, sku, unit) VALUES (?, ?, ?)',
             [name, sku, unit]
         );
         const productId = prodResult.insertId;
-        
+
         await connection.query(
             'INSERT INTO inventory (product_id, quantity) VALUES (?, ?)',
             [productId, parseInt(initialQuantity) || 0]
         );
-        
+
         await connection.commit();
         res.status(201).json({ message: 'Product created', id: productId });
     } catch (err) {
@@ -236,7 +237,7 @@ router.get('/orders', verifyToken, async (req, res) => {
             ORDER BY o.created_at DESC
         `;
         const [rows] = await db.query(sql);
-        
+
         // Fetch order items manually for simplicity
         for (let row of rows) {
             const [items] = await db.query(`
@@ -299,7 +300,7 @@ router.post('/orders/:id/settle', verifyToken, async (req, res) => {
         await connection.beginTransaction();
         const orderId = req.params.id;
         const { method, amount, distributor_signature, retailer_signature, delivery_id } = req.body;
-        
+
         let { cheque_number, bank_name, cheque_date } = req.body;
         cheque_number = (cheque_number && cheque_number.trim() !== '') ? cheque_number : null;
         bank_name = (bank_name && bank_name.trim() !== '') ? bank_name : null;
@@ -312,7 +313,7 @@ router.post('/orders/:id/settle', verifyToken, async (req, res) => {
         );
 
         let payment_status = method === 'PAY_LATER' ? 'UNPAID' : 'PAID';
-        
+
         await connection.query(
             "UPDATE orders SET payment_status = ?, status = 'DELIVERED' WHERE id = ?",
             [payment_status, orderId]
@@ -328,7 +329,7 @@ router.post('/orders/:id/settle', verifyToken, async (req, res) => {
         if (del.length > 0) {
             const distId = del[0].distributor_id;
             const [active] = await connection.query(
-                "SELECT id FROM deliveries WHERE distributor_id = ? AND status = 'ASSIGNED'", 
+                "SELECT id FROM deliveries WHERE distributor_id = ? AND status = 'ASSIGNED'",
                 [distId]
             );
             if (active.length === 0) {
@@ -390,7 +391,7 @@ router.get('/orders/recommendation/:retailerId', verifyToken, async (req, res) =
         );
 
         if (orders.length === 0) {
-             return res.json({ message: 'No past orders to recommend from', recommendations: [] });
+            return res.json({ message: 'No past orders to recommend from', recommendations: [] });
         }
 
         const orderIds = orders.map(o => o.id);
@@ -426,7 +427,7 @@ router.post('/auto-dispatch', verifyToken, async (req, res) => {
 
         // 1. Get order items
         const [items] = await connection.query('SELECT product_id, quantity FROM order_items WHERE order_id = ?', [order_id]);
-        
+
         // 2. Check and reduce inventory
         for (const item of items) {
             const [inv] = await connection.query('SELECT id, quantity FROM inventory WHERE product_id = ? FOR UPDATE', [item.product_id]);
@@ -446,7 +447,7 @@ router.post('/auto-dispatch', verifyToken, async (req, res) => {
             JOIN retailers r ON o.retailer_id = r.id 
             LEFT JOIN users ru ON ru.id = r.user_id
             WHERE o.id = ?`, [order_id]);
-            
+
         if (order.length === 0) throw new Error('Order or retailer not found');
         const retLat = order[0].lat;
         const retLng = order[0].lng;
@@ -458,7 +459,7 @@ router.post('/auto-dispatch', verifyToken, async (req, res) => {
             JOIN users u ON u.id = dp.user_id
             WHERE dp.status = 'AVAILABLE' AND u.role = 'DISTRIBUTOR'
         `);
-        
+
         if (distributors.length === 0) {
             throw new Error('No distributors are currently available. Please wait for a courier to come online.');
         }
@@ -532,15 +533,15 @@ router.post('/auto-dispatch', verifyToken, async (req, res) => {
 
 router.get('/distributors/status', verifyToken, async (req, res) => {
     try {
-         const [rows] = await db.query(`
+        const [rows] = await db.query(`
             SELECT u.id, u.username, dp.status 
             FROM users u 
             JOIN distributor_profiles dp ON u.id = dp.user_id 
             WHERE u.role = 'DISTRIBUTOR'
          `);
-         res.json(rows);
+        res.json(rows);
     } catch (err) {
-         res.status(500).json({ message: 'Error fetching distributors' });
+        res.status(500).json({ message: 'Error fetching distributors' });
     }
 });
 
@@ -582,10 +583,10 @@ router.get('/deliveries', verifyToken, async (req, res) => {
         const params = [];
         // If not manager or warehouse, see only own
         if (req.user.role === 'DISTRIBUTOR') {
-             sql += ` WHERE d.distributor_id = ? ORDER BY d.delivery_order ASC, d.id ASC`;
-             params.push(distributor_id);
+            sql += ` WHERE d.distributor_id = ? ORDER BY d.delivery_order ASC, d.id ASC`;
+            params.push(distributor_id);
         } else {
-             sql += ` ORDER BY d.created_at DESC`;
+            sql += ` ORDER BY d.created_at DESC`;
         }
 
         const [rows] = await db.query(sql, params);
@@ -634,18 +635,18 @@ function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // Radius of the earth in km
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-        Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in km
 }
 
 router.get('/route', verifyToken, async (req, res) => {
     try {
         const distributor_id = req.user.id;
-        
+
         // Get pending deliveries for distributor
         const [deliveries] = await db.query(`
             SELECT d.id as delivery_id, r.id as retailer_id, r.name, r.address, r.lat, r.lng
@@ -659,7 +660,7 @@ router.get('/route', verifyToken, async (req, res) => {
 
         // Warehouse start location (dummy coord, e.g., Colombo SL)
         const warehouse = { lat: 6.9271, lng: 79.8612 };
-        
+
         let path = [];
         let currentLocation = warehouse;
         let unvisited = [...deliveries];
@@ -694,7 +695,7 @@ router.get('/route', verifyToken, async (req, res) => {
 
     } catch (err) {
         console.error(err);
-         res.status(500).json({ message: 'Error calculating route' });
+        res.status(500).json({ message: 'Error calculating route' });
     }
 });
 
@@ -709,15 +710,15 @@ router.post('/deliveries/arrive', verifyToken, async (req, res) => {
             JOIN retailers r ON o.retailer_id = r.id
             WHERE d.distributor_id = ? AND d.status = 'ASSIGNED'
         `, [req.user.id]);
-        
+
         const R = 6371; // km
         const nearbyRetailers = nearby.filter(ret => {
             const dLat = (ret.lat - lat) * Math.PI / 180;
             const dLon = (ret.lng - lng) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat * Math.PI / 180) * Math.cos(ret.lat * Math.PI / 180) * 
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat * Math.PI / 180) * Math.cos(ret.lat * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             const distance = R * c;
             return distance < 500; // within 500km radius for MVP testing, realistically ~1-5km
         });
@@ -747,9 +748,9 @@ router.get('/retailer/dashboard', verifyToken, async (req, res) => {
     try {
         const [retailer] = await db.query('SELECT id FROM retailers WHERE user_id = ?', [req.user.id]);
         if (retailer.length === 0) return res.status(404).json({ message: 'Retailer profile not found' });
-        
+
         const retailerId = retailer[0].id;
-        
+
         const [deliveries] = await db.query(`
             SELECT d.id as delivery_id, d.status as delivery_status,
                    o.id as order_id, o.payment_status, o.total_amount, o.locked, d.delivery_time, d.arrived_at
@@ -796,6 +797,57 @@ router.get('/area-manager/retailers', verifyToken, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Error fetching area manager retailers' });
+    }
+});
+
+// --- PERSONALIZATION MODULE ---
+async function getRetailerIdFromReq(req) {
+    if (req.query.retailerId) {
+        return parseInt(req.query.retailerId, 10);
+    }
+    if (req.user.role === 'RETAILER') {
+        const [retailer] = await db.query('SELECT id FROM retailers WHERE user_id = ?', [req.user.id]);
+        if (retailer.length > 0) return retailer[0].id;
+    }
+    return null;
+}
+
+router.get('/personalization/reorder-suggestions', verifyToken, async (req, res) => {
+    try {
+        const retailerId = await getRetailerIdFromReq(req);
+        if (!retailerId) return res.status(400).json({ message: 'Retailer ID required' });
+        
+        const suggestions = await PersonalizationService.getSmartReorderSuggestions(retailerId);
+        res.json(suggestions);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error fetching reorder suggestions' });
+    }
+});
+
+router.get('/personalization/product-list', verifyToken, async (req, res) => {
+    try {
+        const retailerId = await getRetailerIdFromReq(req);
+        if (!retailerId) return res.status(400).json({ message: 'Retailer ID required' });
+
+        const productList = await PersonalizationService.getPersonalizedProductList(retailerId);
+        res.json(productList);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error fetching personalized product list' });
+    }
+});
+
+router.get('/personalization/score', verifyToken, async (req, res) => {
+    try {
+        const retailerId = await getRetailerIdFromReq(req);
+        if (!retailerId) return res.status(400).json({ message: 'Retailer ID required' });
+
+        const score = await PersonalizationService.getRetailerScore(retailerId);
+        res.json(score);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error fetching retailer score' });
     }
 });
 
