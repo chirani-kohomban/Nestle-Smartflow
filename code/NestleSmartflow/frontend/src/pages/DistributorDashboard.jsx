@@ -4,7 +4,7 @@ import { Route, MapPin, CheckCircle, LogOut, Navigation2, Lock, CreditCard, PenT
 import { useNavigate } from 'react-router-dom';
 import SignaturePad from '../components/SignaturePad';
 
-const API_URL = 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://nestle-smartflow--chiranivihanxa.replit.app/api';
 
 export default function DistributorDashboard() {
   const [route, setRoute] = useState([]);
