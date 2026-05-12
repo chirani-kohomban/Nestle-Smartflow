@@ -106,7 +106,7 @@ export default function DistributorDashboard() {
       setSessionOrderItems(orderMatch ? orderMatch.items : []);
       setSessionRetailer(retailer);
       setNearbyRetailers([]);
-      setOrderLocked(false);
+      setOrderLocked(orderMatch && orderMatch.locked ? true : false);
       setSignatures({ distributor: null, retailer: null });
     } catch (err) {
       console.error(err);

@@ -5,6 +5,29 @@ const jwt = require('jsonwebtoken');
 const db = require('./db');
 const { verifyToken } = require('./middleware'); // Assuming verifyToken is standard
 const PersonalizationService = require('./services/personalizationService');
+const nodemailer = require('nodemailer');
+
+// Helper to send email via Ethereal (mock SMTP)
+async function sendEReceipt(orderId, amount, method, retailerName) {
+    try {
+        const testAccount = await nodemailer.createTestAccount();
+        const transporter = nodemailer.createTransport({
+            host: testAccount.smtp.host,
+            port: testAccount.smtp.port,
+            secure: testAccount.smtp.secure,
+            auth: { user: testAccount.user, pass: testAccount.pass }
+        });
+        const info = await transporter.sendMail({
+            from: '"SmartFlow" <noreply@smartflow.com>',
+            to: 'retailer@example.com', // In a real app, use the retailer's email
+            subject: `E-Receipt for Order #${orderId}`,
+            text: `Hello ${retailerName},\n\nThis is your E-Receipt for Order #${orderId}.\n\nTotal Paid: LKR ${amount}\nPayment Method: ${method}\n\nThank you for using SmartFlow!`
+        });
+        console.log("E-Receipt Email sent! Preview URL: %s", nodemailer.getTestMessageUrl(info));
+    } catch (err) {
+        console.error("Failed to send E-Receipt Email:", err);
+    }
+}
 
 // --- AUTHENTICATION ---
 // POST /login -> Authenticate user, return role
@@ -238,7 +261,7 @@ router.get('/orders', verifyToken, async (req, res) => {
         `;
         const [rows] = await db.query(sql);
 
-        // Fetch order items manually for simplicity
+        // Fetch order items and payments manually for simplicity
         for (let row of rows) {
             const [items] = await db.query(`
                 SELECT oi.*, p.name as product_name
@@ -247,6 +270,9 @@ router.get('/orders', verifyToken, async (req, res) => {
                 WHERE oi.order_id = ?
             `, [row.id]);
             row.items = items;
+            
+            const [payments] = await db.query('SELECT * FROM payments WHERE order_id = ?', [row.id]);
+            row.payment = payments.length > 0 ? payments[0] : null;
         }
 
         res.json(rows);
@@ -325,9 +351,15 @@ router.post('/orders/:id/settle', verifyToken, async (req, res) => {
         );
 
         // Auto-release distributor if no more assigned deliveries
-        const [del] = await connection.query('SELECT distributor_id FROM deliveries WHERE id = ?', [delivery_id]);
+        const [del] = await connection.query('SELECT distributor_id, retailer_id FROM deliveries WHERE id = ?', [delivery_id]);
+        let retailerName = 'Retailer';
         if (del.length > 0) {
             const distId = del[0].distributor_id;
+            
+            // Get retailer name for email
+            const [ret] = await connection.query('SELECT name FROM retailers WHERE id = ?', [del[0].retailer_id]);
+            if (ret.length > 0) retailerName = ret[0].name;
+
             const [active] = await connection.query(
                 "SELECT id FROM deliveries WHERE distributor_id = ? AND status = 'ASSIGNED'",
                 [distId]
@@ -338,6 +370,10 @@ router.post('/orders/:id/settle', verifyToken, async (req, res) => {
         }
 
         await connection.commit();
+        
+        // Send email asynchronously
+        sendEReceipt(orderId, amount, method, retailerName);
+
         res.json({ message: 'Settlement complete' });
     } catch (err) {
         await connection.rollback();

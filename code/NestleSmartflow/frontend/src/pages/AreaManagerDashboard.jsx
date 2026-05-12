@@ -11,6 +11,8 @@ export default function AreaManagerDashboard() {
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [orders, setOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAddRetailerModal, setShowAddRetailerModal] = useState(false);
+  const [newRetailer, setNewRetailer] = useState({ name: '', address: '', lat: '', lng: '' });
 
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
@@ -41,6 +43,20 @@ export default function AreaManagerDashboard() {
   const logout = () => {
     localStorage.clear();
     navigate('/');
+  };
+
+  const handleAddRetailer = async (e) => {
+    e.preventDefault();
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post(`${API_URL}/retailers`, newRetailer, { headers });
+      setShowAddRetailerModal(false);
+      setNewRetailer({ name: '', address: '', lat: '', lng: '' });
+      fetchData(); // Refresh list after adding
+    } catch (err) {
+      console.error(err);
+      alert('Error adding retailer');
+    }
   };
 
   const downloadWeeklyReport = () => {
@@ -101,12 +117,20 @@ export default function AreaManagerDashboard() {
         
         {/* Retailer Profiles Panel */}
         <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8 flex flex-col max-h-[500px]">
-          <h2 className="text-xl items-center font-bold mb-6 flex text-white tracking-tight">
-            <div className="bg-indigo-500/20 p-2 rounded-xl mr-3 shadow-inner border border-indigo-500/30">
-              <Store className="text-indigo-400 w-5 h-5" />
-            </div>
-            Retailer Profiles & Performance
-          </h2>
+          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
+            <h2 className="text-xl items-center font-bold flex text-white tracking-tight">
+              <div className="bg-indigo-500/20 p-2 rounded-xl mr-3 shadow-inner border border-indigo-500/30">
+                <Store className="text-indigo-400 w-5 h-5" />
+              </div>
+              Retailer Profiles & Performance
+            </h2>
+            <button 
+              onClick={() => setShowAddRetailerModal(true)} 
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-600/20 shrink-0"
+            >
+              + Add Retailer
+            </button>
+          </div>
           
           <div className="overflow-y-auto pr-2 space-y-3 flex-1">
             {extendedRetailers.map(r => (
@@ -248,6 +272,39 @@ export default function AreaManagerDashboard() {
         </div>
       </div>
 
+      {/* Add Retailer Modal */}
+      {showAddRetailerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl max-w-md w-full p-8 relative">
+            <h2 className="text-xl font-bold text-white mb-6 flex items-center"><Store className="mr-2 text-indigo-400"/> Register New Retailer</h2>
+            <form onSubmit={handleAddRetailer} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Retailer Name</label>
+                <input required type="text" value={newRetailer.name} onChange={e => setNewRetailer({...newRetailer, name: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500/50 outline-none" placeholder="e.g. Gamini Stores" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Address</label>
+                <input required type="text" value={newRetailer.address} onChange={e => setNewRetailer({...newRetailer, address: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500/50 outline-none" placeholder="e.g. 123 Galle Road, Colombo" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Latitude</label>
+                  <input required type="number" step="any" value={newRetailer.lat} onChange={e => setNewRetailer({...newRetailer, lat: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500/50 outline-none" placeholder="e.g. 6.9271" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Longitude</label>
+                  <input required type="number" step="any" value={newRetailer.lng} onChange={e => setNewRetailer({...newRetailer, lng: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500/50 outline-none" placeholder="e.g. 79.8612" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setShowAddRetailerModal(false)} className="px-4 py-2 rounded-xl font-bold text-slate-400 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/20">Register Retailer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Retailer Detail Modal */}
       {selectedProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
@@ -284,6 +341,33 @@ export default function AreaManagerDashboard() {
                 <p className={`text-xl font-bold ${selectedProfile.pending_payments_count > 2 ? 'text-rose-400' : 'text-slate-200'}`}>
                   {selectedProfile.pending_payments_count}
                 </p>
+              </div>
+            </div>
+
+            <div className="mt-8 border-t border-slate-800 pt-6">
+              <h3 className="text-lg font-bold text-white flex items-center mb-4">
+                <DollarSign className="text-emerald-400 mr-2" size={20} /> 
+                Recent E-Receipts
+              </h3>
+              <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                {orders.filter(o => o.retailer_id === selectedProfile.id && o.payment_status === 'PAID' && o.payment).length > 0 ? (
+                  orders.filter(o => o.retailer_id === selectedProfile.id && o.payment_status === 'PAID' && o.payment).map(o => (
+                    <div key={o.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex justify-between items-center transition-all hover:border-slate-600">
+                      <div>
+                        <p className="text-sm font-bold text-slate-200 tracking-wide">Order #{o.id}</p>
+                        <p className="text-xs text-slate-500 mt-1">Paid on: {new Date(o.payment.created_at || o.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-emerald-400">LKR {parseFloat(o.payment.amount).toLocaleString()}</p>
+                        <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-1 border border-slate-700 inline-block px-2 py-0.5 rounded-full">{o.payment.method}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center p-6 bg-slate-950 border border-slate-800 border-dashed rounded-xl">
+                    <p className="text-sm text-slate-500 italic">No e-receipts available for this retailer.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -120,77 +120,25 @@ export default function NestleManagerDashboard() {
           </div>
         </div>
 
-        {/* Order History Panel */}
-        <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <h2 className="text-xl font-bold flex items-center text-white tracking-tight">
-              <div className="bg-slate-800 p-2 rounded-xl mr-3 shadow-inner border border-slate-700">
-                <Clock className="text-slate-300 w-5 h-5" />
-              </div>
-              Active & Past Orders
-            </h2>
-            
-            <div className="relative w-full sm:w-64">
-              <input 
-                type="text" 
-                placeholder="Search ledger..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-700 rounded-xl py-2 pl-10 pr-4 text-sm text-slate-200 focus:ring-2 focus:ring-blue-500/50 outline-none transition-all shadow-inner"
-              />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-            </div>
+        {/* Financial & Order Summary Tabs */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8 flex flex-col items-center justify-center text-center hover:-translate-y-1 transition-transform">
+            <h3 className="text-slate-500 font-bold tracking-widest text-xs uppercase mb-2">Total Orders</h3>
+            <p className="text-5xl font-black text-white">{orders.length}</p>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/80 text-slate-300 text-xs uppercase tracking-wider font-bold">
-                  <th className="p-4 border-b border-slate-800/80">Order Ref</th>
-                  <th className="p-4 border-b border-slate-800/80">Destination</th>
-                  <th className="p-4 border-b border-slate-800/80 w-1/3">Manifest</th>
-                  <th className="p-4 border-b border-slate-800/80">State</th>
-                  <th className="p-4 border-b border-slate-800/80">Ledger</th>
-                  <th className="p-4 border-b border-slate-800/80 text-right">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50 text-sm">
-                {filteredOrders.map(o => (
-                  <tr key={o.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="p-4 font-mono text-slate-500 font-medium">#{o.id}</td>
-                    <td className="p-4 font-semibold text-slate-200">{o.retailer_name}</td>
-                    <td className="p-4 text-slate-400">
-                      <div className="flex flex-wrap gap-1.5">
-                        {o.items?.map((i, idx) => (
-                          <span key={idx} className="bg-slate-800 text-xs px-2 py-1 rounded-md text-slate-300 border border-slate-700">
-                            <strong className="text-blue-400 mr-1">{i.quantity}x</strong>{i.product_name}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border ${
-                        o.status === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                        o.status === 'DISPATCHED' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                        'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                      }`}>
-                        {o.status}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border ${
-                        o.payment_status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                      }`}>
-                        {o.payment_status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-500 text-right tabular-nums">{new Date(o.created_at).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-                {filteredOrders.length === 0 && (
-                  <tr><td colSpan="6" className="text-center p-8 text-slate-500 font-medium">No ledger entries found.</td></tr>
-                )}
-              </tbody>
-            </table>
+          <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8 flex flex-col items-center justify-center text-center hover:-translate-y-1 transition-transform relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-bl-full"></div>
+            <h3 className="text-slate-500 font-bold tracking-widest text-xs uppercase mb-2">Settled (Paid)</h3>
+            <p className="text-5xl font-black text-emerald-400">
+              {orders.filter(o => o.payment_status === 'PAID').length}
+            </p>
+          </div>
+          <div className="bg-slate-900/80 backdrop-blur-md rounded-3xl shadow-xl border border-slate-800 p-8 flex flex-col items-center justify-center text-center hover:-translate-y-1 transition-transform relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/10 rounded-bl-full"></div>
+            <h3 className="text-slate-500 font-bold tracking-widest text-xs uppercase mb-2">Pending (Unpaid)</h3>
+            <p className="text-5xl font-black text-rose-400">
+              {orders.filter(o => o.payment_status === 'UNPAID' || !o.payment_status).length}
+            </p>
           </div>
         </div>
 
